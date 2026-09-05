@@ -5,6 +5,7 @@ import {
   RefreshCw,
   Trash2,
   Eye,
+  ChevronDown,
 } from 'lucide-react';
 import { RequestLog, NodeEntity } from '../types';
 import { getTrafficLogs, clearTrafficLogs, getConfigSettings, updateConfigSettings } from '../services/api';
@@ -25,11 +26,27 @@ export const TrafficPage: React.FC<TrafficPageProps> = ({ nodes }) => {
   const [statusFilter, setStatusFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('records_per_page');
+      return saved ? parseInt(saved, 10) || 50 : 50;
+    } catch {
+      return 50;
+    }
+  });
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 1 });
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState<number>(3);
   const [availableStatuses, setAvailableStatuses] = useState<number[]>([]);
   const [selectedLog, setSelectedLog] = useState<RequestLog | null>(null);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    try {
+      localStorage.setItem('records_per_page', String(newSize));
+    } catch {}
+    setPage(1);
+  };
 
   // Fetch refresh preferences from database on mount (no localStorage)
   useEffect(() => {
@@ -60,7 +77,7 @@ export const TrafficPage: React.FC<TrafficPageProps> = ({ nodes }) => {
       setLoading(true);
       const data = await getTrafficLogs({
         page,
-        limit: 50,
+        limit: pageSize,
         search: searchTerm || undefined,
         nodeId: nodeFilter || undefined,
         status: statusFilter || undefined,
@@ -70,13 +87,13 @@ export const TrafficPage: React.FC<TrafficPageProps> = ({ nodes }) => {
       if (data.availableStatuses && Array.isArray(data.availableStatuses)) {
         setAvailableStatuses(data.availableStatuses);
       }
-      setPagination(data.pagination || { page: 1, limit: 50, total: 0, totalPages: 1 });
+      setPagination(data.pagination || { page: 1, limit: pageSize, total: 0, totalPages: 1 });
     } catch (err) {
       // Handled
     } finally {
       setLoading(false);
     }
-  }, [page, searchTerm, nodeFilter, statusFilter, methodFilter]);
+  }, [page, pageSize, searchTerm, nodeFilter, statusFilter, methodFilter]);
 
   const uniqueStatuses = useMemo(() => {
     const set = new Set<number>(availableStatuses);
@@ -128,31 +145,34 @@ export const TrafficPage: React.FC<TrafficPageProps> = ({ nodes }) => {
 
         <div className="flex items-center space-x-3">
           {/* Auto refresh toggle & interval selector */}
-          <div className="flex items-center space-x-2.5 bg-lavender-wash dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-btn px-3 py-1.5 shadow-none">
+          <div className="inline-flex items-center space-x-2.5 bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-btn px-3 h-9 shadow-none">
             <Toggle
               checked={autoRefresh}
               onChange={handleAutoRefreshChange}
               label="Auto Refresh"
             />
-            <div className="h-3.5 w-px bg-frost-border dark:bg-zinc-700" />
-            <select
-              value={refreshInterval}
-              disabled={!autoRefresh}
-              onChange={(e) => handleIntervalChange(Number(e.target.value))}
-              className="bg-transparent text-xs font-semibold text-midnight-ink dark:text-zinc-300 focus:outline-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed pr-0.5"
-              title="Select refresh rate"
-            >
-              <option value={1} className="bg-paper dark:bg-zinc-900 text-midnight-ink dark:text-zinc-100">1s</option>
-              <option value={2} className="bg-paper dark:bg-zinc-900 text-midnight-ink dark:text-zinc-100">2s</option>
-              <option value={3} className="bg-paper dark:bg-zinc-900 text-midnight-ink dark:text-zinc-100">3s</option>
-              <option value={5} className="bg-paper dark:bg-zinc-900 text-midnight-ink dark:text-zinc-100">5s</option>
-              <option value={10} className="bg-paper dark:bg-zinc-900 text-midnight-ink dark:text-zinc-100">10s</option>
-            </select>
+            <div className="h-4 w-px bg-frost-border dark:bg-zinc-700" />
+            <div className={`relative inline-flex items-center ${!autoRefresh ? 'opacity-40 pointer-events-none' : ''}`}>
+              <select
+                value={refreshInterval}
+                disabled={!autoRefresh}
+                onChange={(e) => handleIntervalChange(Number(e.target.value))}
+                className="appearance-none bg-transparent text-xs font-mono font-semibold text-midnight-ink dark:text-zinc-200 pr-4 py-0.5 focus:outline-none cursor-pointer leading-none"
+                title="Select refresh rate"
+              >
+                <option value={1} className="bg-paper dark:bg-zinc-900 text-midnight-ink dark:text-zinc-100">1s</option>
+                <option value={2} className="bg-paper dark:bg-zinc-900 text-midnight-ink dark:text-zinc-100">2s</option>
+                <option value={3} className="bg-paper dark:bg-zinc-900 text-midnight-ink dark:text-zinc-100">3s</option>
+                <option value={5} className="bg-paper dark:bg-zinc-900 text-midnight-ink dark:text-zinc-100">5s</option>
+                <option value={10} className="bg-paper dark:bg-zinc-900 text-midnight-ink dark:text-zinc-100">10s</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-mist dark:text-zinc-400 absolute right-0 pointer-events-none" />
+            </div>
           </div>
 
           <button
             onClick={() => handleClearLogs()}
-            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50/60 dark:hover:bg-rose-950/40 border border-frost-border dark:border-zinc-800 rounded-btn transition-colors"
+            className="inline-flex items-center justify-center space-x-1.5 px-3 h-9 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50/60 dark:hover:bg-rose-950/40 border border-frost-border dark:border-zinc-800 rounded-btn transition-colors"
             title="Clear all logs"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -162,7 +182,7 @@ export const TrafficPage: React.FC<TrafficPageProps> = ({ nodes }) => {
           <button
             onClick={fetchLogs}
             disabled={loading}
-            className="p-2 text-clearbit-slate hover:text-midnight-ink dark:text-zinc-400 dark:hover:text-zinc-200 border border-frost-border dark:border-zinc-800 rounded-btn hover:bg-lavender-wash dark:hover:bg-zinc-800 transition-colors"
+            className="inline-flex items-center justify-center h-9 w-9 text-clearbit-slate hover:text-midnight-ink dark:text-zinc-400 dark:hover:text-zinc-200 border border-frost-border dark:border-zinc-800 rounded-btn hover:bg-lavender-wash dark:hover:bg-zinc-800 transition-colors"
             title="Manual Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -171,7 +191,7 @@ export const TrafficPage: React.FC<TrafficPageProps> = ({ nodes }) => {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="p-4 bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card shadow-none space-y-3">
+      <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card p-4 shadow-none space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
           {/* Search */}
           <div className="relative">
@@ -255,18 +275,18 @@ export const TrafficPage: React.FC<TrafficPageProps> = ({ nodes }) => {
         </div>
       ) : (
         <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card overflow-hidden shadow-none">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="w-full overflow-hidden">
+            <table className="w-full text-left text-xs table-fixed">
               <thead className="bg-lavender-wash/70 dark:bg-zinc-950 border-b border-frost-border dark:border-zinc-800 text-clearbit-slate dark:text-zinc-400 font-semibold uppercase tracking-caption">
                 <tr>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Method</th>
-                  <th className="py-3 px-4">Node Target</th>
-                  <th className="py-3 px-4">Original Path</th>
-                  <th className="py-3 px-4">Forwarded Target</th>
-                  <th className="py-3 px-4">Latency</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Time</th>
-                  <th className="py-3 px-4 text-right">Details</th>
+                  <th className="py-3 px-3 w-16">Status</th>
+                  <th className="py-3 px-3 w-16">Method</th>
+                  <th className="py-3 px-3 w-32">Node Target</th>
+                  <th className="py-3 px-3">Original Path</th>
+                  <th className="py-3 px-3">Forwarded Target</th>
+                  <th className="py-3 px-3 w-16">Latency</th>
+                  <th className="py-3 px-3 w-24 whitespace-nowrap">Time</th>
+                  <th className="py-3 px-3 w-12 text-right">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-frost-border dark:divide-zinc-800 font-mono text-midnight-ink dark:text-zinc-300">
@@ -278,7 +298,7 @@ export const TrafficPage: React.FC<TrafficPageProps> = ({ nodes }) => {
                       onClick={() => setSelectedLog(log)}
                       className="hover:bg-lavender-wash/40 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors"
                     >
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-3">
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                             isSuccess
@@ -289,30 +309,32 @@ export const TrafficPage: React.FC<TrafficPageProps> = ({ nodes }) => {
                           {log.status_code}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-bold text-midnight-ink dark:text-zinc-100">
+                      <td className="py-3 px-3 font-bold text-midnight-ink dark:text-zinc-100">
                         {log.method}
                       </td>
-                      <td className="py-3 px-4">
-                        <span className="font-sans font-medium text-midnight-ink dark:text-zinc-100">
-                          {log.node_name || log.node_id}
-                        </span>
-                        <span className="text-[10px] text-clearbit-slate dark:text-zinc-400 ml-1.5">
-                          (:{log.target_port})
-                        </span>
+                      <td className="py-3 px-3">
+                        <div className="truncate" title={`${log.node_name || log.node_id} (:${log.target_port})`}>
+                          <span className="font-sans font-medium text-midnight-ink dark:text-zinc-100">
+                            {log.node_name || log.node_id}
+                          </span>
+                          <span className="text-[10px] text-clearbit-slate dark:text-zinc-400 ml-1">
+                            (:{log.target_port})
+                          </span>
+                        </div>
                       </td>
-                      <td className="py-3 px-4 text-clearbit-slate dark:text-zinc-200 truncate max-w-xs font-normal">
+                      <td className="py-3 px-3 text-clearbit-slate dark:text-zinc-200 truncate font-normal" title={log.original_path}>
                         {log.original_path}
                       </td>
-                      <td className="py-3 px-4 text-electric-blue dark:text-sky-400 truncate max-w-xs font-normal">
+                      <td className="py-3 px-3 text-electric-blue dark:text-sky-400 truncate font-normal" title={log.target_path}>
                         {log.target_path}
                       </td>
-                      <td className="py-3 px-4 text-clearbit-slate dark:text-zinc-400">
+                      <td className="py-3 px-3 text-clearbit-slate dark:text-zinc-400 whitespace-nowrap">
                         {log.latency_ms}ms
                       </td>
-                      <td className="py-3 px-4 text-clearbit-slate dark:text-zinc-400 font-mono text-xs whitespace-nowrap">
+                      <td className="py-3 px-3 text-clearbit-slate dark:text-zinc-400 font-mono text-xs whitespace-nowrap">
                         {formatLocalTime(log.created_at)}
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3 px-3 text-right">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -332,29 +354,57 @@ export const TrafficPage: React.FC<TrafficPageProps> = ({ nodes }) => {
           </div>
 
           {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-lavender-wash/40 dark:bg-zinc-950 border-t border-frost-border dark:border-zinc-800 text-xs text-clearbit-slate dark:text-zinc-400 font-sans">
-              <span>
-                Page {pagination.page} of {pagination.totalPages} ({pagination.total} records)
-              </span>
-              <div className="flex items-center space-x-2">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-lavender-wash/40 dark:bg-zinc-950 border-t border-frost-border dark:border-zinc-800 text-xs text-clearbit-slate dark:text-zinc-400 font-sans">
+            <div>
+              {pagination.total > 0 ? (
+                <span>
+                  Page <strong className="text-midnight-ink dark:text-zinc-200">{pagination.page}</strong> of{' '}
+                  <strong className="text-midnight-ink dark:text-zinc-200">{pagination.totalPages}</strong> ({pagination.total} records)
+                </span>
+              ) : (
+                <span>0 records</span>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <div className="inline-flex items-center space-x-2">
+                <span className="text-clearbit-slate/80 dark:text-zinc-400 text-xs">Records per page:</span>
+                <div className="relative inline-flex items-center">
+                  <select
+                    value={pageSize}
+                    onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                    className="appearance-none bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-700 rounded-btn text-xs font-semibold text-midnight-ink dark:text-zinc-200 pl-2.5 pr-7 h-7 focus:outline-none cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={200}>200</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-mist dark:text-zinc-400 absolute right-1.5 pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="h-4 w-px bg-frost-border dark:bg-zinc-700" />
+
+              <div className="flex items-center space-x-1.5">
                 <button
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="px-2.5 py-1 bg-paper dark:bg-zinc-800 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 disabled:opacity-40 hover:bg-lavender-wash transition-colors"
+                  className="px-2.5 h-7 bg-paper dark:bg-zinc-800 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 disabled:opacity-35 disabled:cursor-not-allowed hover:bg-lavender-wash dark:hover:bg-zinc-700 transition-colors flex items-center justify-center font-medium"
                 >
                   Previous
                 </button>
                 <button
                   disabled={page >= pagination.totalPages}
                   onClick={() => setPage((p) => p + 1)}
-                  className="px-2.5 py-1 bg-paper dark:bg-zinc-800 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 disabled:opacity-40 hover:bg-lavender-wash transition-colors"
+                  className="px-2.5 h-7 bg-paper dark:bg-zinc-800 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 disabled:opacity-35 disabled:cursor-not-allowed hover:bg-lavender-wash dark:hover:bg-zinc-700 transition-colors flex items-center justify-center font-medium"
                 >
                   Next
                 </button>
               </div>
             </div>
-          )}
+          </div>
         </div>
       )}
 

@@ -19,6 +19,11 @@
   --radius-tags: 9999px;
 }
 
+html, body, #root {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
 body {
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
@@ -34,10 +39,15 @@ input[type=number] {
   -moz-appearance: textfield;
 }
 
-/* Custom scrollbars for clean enterprise look */
+/* Custom scrollbars - vertical only, zero horizontal scrolling anywhere */
 ::-webkit-scrollbar {
   width: 6px;
-  height: 6px;
+  height: 0px;
+}
+
+::-webkit-scrollbar:horizontal {
+  display: none !important;
+  height: 0px !important;
 }
 
 ::-webkit-scrollbar-track {

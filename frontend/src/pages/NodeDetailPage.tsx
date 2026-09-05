@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Search,
   Eye,
+  ChevronDown,
 } from 'lucide-react';
 import { NodeEntity, RequestLog, NgrokStatus } from '../types';
 import { getNodeLogs, pingNode } from '../services/api';
@@ -39,9 +40,25 @@ export const NodeDetailPage: React.FC<NodeDetailPageProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('records_per_page');
+      return saved ? parseInt(saved, 10) || 50 : 50;
+    } catch {
+      return 50;
+    }
+  });
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 1 });
   const [availableStatuses, setAvailableStatuses] = useState<number[]>([]);
   const [selectedLog, setSelectedLog] = useState<RequestLog | null>(null);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    try {
+      localStorage.setItem('records_per_page', String(newSize));
+    } catch {}
+    setPage(1);
+  };
 
   const baseNgrokUrl =
     ngrokStatus?.publicUrl || 'https://unsmooth-jacklyn-unawakening.ngrok-free.dev';
@@ -53,7 +70,7 @@ export const NodeDetailPage: React.FC<NodeDetailPageProps> = ({
       setLoadingLogs(true);
       const data = await getNodeLogs(nodeId, {
         page,
-        limit: 50,
+        limit: pageSize,
         search: searchTerm || undefined,
         status: statusFilter || undefined,
       });
@@ -61,13 +78,13 @@ export const NodeDetailPage: React.FC<NodeDetailPageProps> = ({
       if (data.availableStatuses && Array.isArray(data.availableStatuses)) {
         setAvailableStatuses(data.availableStatuses);
       }
-      setPagination(data.pagination || { page: 1, limit: 50, total: 0, totalPages: 1 });
+      setPagination(data.pagination || { page: 1, limit: pageSize, total: 0, totalPages: 1 });
     } catch (err) {
       // Handled
     } finally {
       setLoadingLogs(false);
     }
-  }, [nodeId, page, searchTerm, statusFilter]);
+  }, [nodeId, page, pageSize, searchTerm, statusFilter]);
 
   const uniqueStatuses = useMemo(() => {
     const set = new Set<number>(availableStatuses);
@@ -183,13 +200,13 @@ export const NodeDetailPage: React.FC<NodeDetailPageProps> = ({
           <div className="text-xs font-semibold text-clearbit-slate dark:text-zinc-400 uppercase tracking-caption mb-2">
             Public Endpoint
           </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            <div className="flex-1 px-3.5 py-2 bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-700 rounded-btn text-sm font-mono text-midnight-ink dark:text-zinc-100 select-all break-all sm:break-normal">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="flex-1 flex items-center px-4 h-10 bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-700 rounded-btn text-sm font-mono text-midnight-ink dark:text-zinc-100 select-all break-all sm:break-normal">
               {liveUrl}
             </div>
             <button
               onClick={() => handleCopy(liveUrl)}
-              className="flex items-center justify-center space-x-1.5 px-4 py-2 text-xs font-medium bg-paper dark:bg-zinc-800 hover:bg-lavender-wash dark:hover:bg-zinc-700 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 transition-colors"
+              className="flex items-center justify-center space-x-2 px-4 h-10 text-xs font-medium bg-paper dark:bg-zinc-800 hover:bg-lavender-wash dark:hover:bg-zinc-700 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 transition-colors shrink-0"
             >
               {copied ? (
                 <>
@@ -207,7 +224,7 @@ export const NodeDetailPage: React.FC<NodeDetailPageProps> = ({
               href={liveUrl}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center justify-center p-2.5 bg-paper dark:bg-zinc-800 hover:bg-lavender-wash dark:hover:bg-zinc-700 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 transition-colors"
+              className="flex items-center justify-center px-3 h-10 bg-paper dark:bg-zinc-800 hover:bg-lavender-wash dark:hover:bg-zinc-700 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 transition-colors shrink-0"
               title="Open Live URL"
             >
               <ExternalLink className="w-4 h-4" />
@@ -317,17 +334,17 @@ export const NodeDetailPage: React.FC<NodeDetailPageProps> = ({
           </div>
         ) : (
           <div className="border border-frost-border dark:border-zinc-800 rounded-card overflow-hidden shadow-none">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="w-full overflow-hidden">
+              <table className="w-full text-left text-xs table-fixed">
                 <thead className="bg-lavender-wash/70 dark:bg-zinc-950 border-b border-frost-border dark:border-zinc-800 text-clearbit-slate dark:text-zinc-400 font-semibold uppercase tracking-caption">
                   <tr>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3">Method</th>
+                    <th className="py-2.5 px-3 w-16">Status</th>
+                    <th className="py-2.5 px-3 w-16">Method</th>
                     <th className="py-2.5 px-3">Path Forwarded</th>
-                    <th className="py-2.5 px-3">Latency</th>
-                    <th className="py-2.5 px-3">Client IP</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Time</th>
-                    <th className="py-2.5 px-3 text-right">Inspect</th>
+                    <th className="py-2.5 px-3 w-16">Latency</th>
+                    <th className="py-2.5 px-3 w-28">Client IP</th>
+                    <th className="py-2.5 px-3 w-24 whitespace-nowrap">Time</th>
+                    <th className="py-2.5 px-3 w-12 text-right">Inspect</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-frost-border dark:divide-zinc-800 font-mono text-midnight-ink dark:text-zinc-300">
@@ -353,13 +370,13 @@ export const NodeDetailPage: React.FC<NodeDetailPageProps> = ({
                         <td className="py-2.5 px-3 font-bold text-midnight-ink dark:text-zinc-100">
                           {log.method}
                         </td>
-                        <td className="py-2.5 px-3 text-clearbit-slate dark:text-zinc-200 truncate max-w-xs font-normal">
+                        <td className="py-2.5 px-3 text-clearbit-slate dark:text-zinc-200 truncate font-normal" title={log.target_path}>
                           {log.target_path}
                         </td>
-                        <td className="py-2.5 px-3 text-clearbit-slate dark:text-zinc-400">
+                        <td className="py-2.5 px-3 text-clearbit-slate dark:text-zinc-400 whitespace-nowrap">
                           {log.latency_ms}ms
                         </td>
-                        <td className="py-2.5 px-3 text-clearbit-slate dark:text-zinc-400">
+                        <td className="py-2.5 px-3 text-clearbit-slate dark:text-zinc-400 truncate">
                           {log.client_ip || '127.0.0.1'}
                         </td>
                         <td className="py-2.5 px-3 text-clearbit-slate dark:text-zinc-400 font-mono text-xs whitespace-nowrap">
@@ -385,29 +402,57 @@ export const NodeDetailPage: React.FC<NodeDetailPageProps> = ({
             </div>
 
             {/* Pagination Controls */}
-            {pagination.totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 bg-lavender-wash/40 dark:bg-zinc-950 border-t border-frost-border dark:border-zinc-800 text-xs text-clearbit-slate dark:text-zinc-400 font-sans">
-                <span>
-                  Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)
-                </span>
-                <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-lavender-wash/40 dark:bg-zinc-950 border-t border-frost-border dark:border-zinc-800 text-xs text-clearbit-slate dark:text-zinc-400 font-sans">
+              <div>
+                {pagination.total > 0 ? (
+                  <span>
+                    Page <strong className="text-midnight-ink dark:text-zinc-200">{pagination.page}</strong> of{' '}
+                    <strong className="text-midnight-ink dark:text-zinc-200">{pagination.totalPages}</strong> ({pagination.total} records)
+                  </span>
+                ) : (
+                  <span>0 records</span>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <div className="inline-flex items-center space-x-2">
+                  <span className="text-clearbit-slate/80 dark:text-zinc-400 text-xs">Records per page:</span>
+                  <div className="relative inline-flex items-center">
+                    <select
+                      value={pageSize}
+                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                      className="appearance-none bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-700 rounded-btn text-xs font-semibold text-midnight-ink dark:text-zinc-200 pl-2.5 pr-7 h-7 focus:outline-none cursor-pointer"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={200}>200</option>
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-mist dark:text-zinc-400 absolute right-1.5 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div className="h-4 w-px bg-frost-border dark:bg-zinc-700" />
+
+                <div className="flex items-center space-x-1.5">
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-2.5 py-1 bg-paper dark:bg-zinc-800 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 disabled:opacity-40 hover:bg-lavender-wash transition-colors"
+                    className="px-2.5 h-7 bg-paper dark:bg-zinc-800 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 disabled:opacity-35 disabled:cursor-not-allowed hover:bg-lavender-wash dark:hover:bg-zinc-700 transition-colors flex items-center justify-center font-medium"
                   >
                     Previous
                   </button>
                   <button
                     disabled={page >= pagination.totalPages}
                     onClick={() => setPage((p) => p + 1)}
-                    className="px-2.5 py-1 bg-paper dark:bg-zinc-800 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 disabled:opacity-40 hover:bg-lavender-wash transition-colors"
+                    className="px-2.5 h-7 bg-paper dark:bg-zinc-800 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 disabled:opacity-35 disabled:cursor-not-allowed hover:bg-lavender-wash dark:hover:bg-zinc-700 transition-colors flex items-center justify-center font-medium"
                   >
                     Next
                   </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         )}
       </div>

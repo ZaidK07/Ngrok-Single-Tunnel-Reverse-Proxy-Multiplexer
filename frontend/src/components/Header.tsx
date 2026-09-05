@@ -66,10 +66,10 @@ export const Header: React.FC<HeaderProps> = ({
           <nav className="flex items-center space-x-1">
             <button
               onClick={() => setActiveTab('gateway')}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-btn text-sm font-medium transition-all ${
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-btn text-sm font-medium transition-colors ${
                 activeTab === 'gateway'
-                  ? 'bg-lavender-wash dark:bg-zinc-800 text-midnight-ink dark:text-zinc-100 border border-frost-border dark:border-zinc-700'
-                  : 'text-clearbit-slate dark:text-zinc-400 hover:text-midnight-ink dark:hover:text-zinc-100 hover:bg-lavender-wash/60 dark:hover:bg-zinc-800/50'
+                  ? 'bg-lavender-wash dark:bg-zinc-800 text-midnight-ink dark:text-zinc-100 font-semibold shadow-none'
+                  : 'text-clearbit-slate dark:text-zinc-400 hover:text-midnight-ink dark:hover:text-zinc-100 hover:bg-lavender-wash/50 dark:hover:bg-zinc-800/40'
               }`}
             >
               <Radio className="w-4 h-4" />
@@ -78,10 +78,10 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => setActiveTab('nodes')}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-btn text-sm font-medium transition-all ${
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-btn text-sm font-medium transition-colors ${
                 activeTab === 'nodes' || activeTab === 'node-detail'
-                  ? 'bg-lavender-wash dark:bg-zinc-800 text-midnight-ink dark:text-zinc-100 border border-frost-border dark:border-zinc-700'
-                  : 'text-clearbit-slate dark:text-zinc-400 hover:text-midnight-ink dark:hover:text-zinc-100 hover:bg-lavender-wash/60 dark:hover:bg-zinc-800/50'
+                  ? 'bg-lavender-wash dark:bg-zinc-800 text-midnight-ink dark:text-zinc-100 font-semibold shadow-none'
+                  : 'text-clearbit-slate dark:text-zinc-400 hover:text-midnight-ink dark:hover:text-zinc-100 hover:bg-lavender-wash/50 dark:hover:bg-zinc-800/40'
               }`}
             >
               <Layers className="w-4 h-4" />
@@ -90,10 +90,10 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => setActiveTab('traffic')}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-btn text-sm font-medium transition-all ${
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-btn text-sm font-medium transition-colors ${
                 activeTab === 'traffic'
-                  ? 'bg-lavender-wash dark:bg-zinc-800 text-midnight-ink dark:text-zinc-100 border border-frost-border dark:border-zinc-700'
-                  : 'text-clearbit-slate dark:text-zinc-400 hover:text-midnight-ink dark:hover:text-zinc-100 hover:bg-lavender-wash/60 dark:hover:bg-zinc-800/50'
+                  ? 'bg-lavender-wash dark:bg-zinc-800 text-midnight-ink dark:text-zinc-100 font-semibold shadow-none'
+                  : 'text-clearbit-slate dark:text-zinc-400 hover:text-midnight-ink dark:hover:text-zinc-100 hover:bg-lavender-wash/50 dark:hover:bg-zinc-800/40'
               }`}
             >
               <Activity className="w-4 h-4" />
@@ -102,10 +102,10 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => setActiveTab('settings')}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-btn text-sm font-medium transition-all ${
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-btn text-sm font-medium transition-colors ${
                 activeTab === 'settings'
-                  ? 'bg-lavender-wash dark:bg-zinc-800 text-midnight-ink dark:text-zinc-100 border border-frost-border dark:border-zinc-700'
-                  : 'text-clearbit-slate dark:text-zinc-400 hover:text-midnight-ink dark:hover:text-zinc-100 hover:bg-lavender-wash/60 dark:hover:bg-zinc-800/50'
+                  ? 'bg-lavender-wash dark:bg-zinc-800 text-midnight-ink dark:text-zinc-100 font-semibold shadow-none'
+                  : 'text-clearbit-slate dark:text-zinc-400 hover:text-midnight-ink dark:hover:text-zinc-100 hover:bg-lavender-wash/50 dark:hover:bg-zinc-800/40'
               }`}
             >
               <Settings className="w-4 h-4" />

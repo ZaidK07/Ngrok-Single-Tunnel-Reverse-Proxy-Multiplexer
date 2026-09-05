@@ -9,6 +9,7 @@ import {
   Trash2,
   Search,
   RefreshCw,
+  ChevronDown,
 } from 'lucide-react';
 import { NodeEntity, NgrokStatus, CreateNodePayload } from '../types';
 import { CreateNodeModal } from '../components/CreateNodeModal';
@@ -38,6 +39,23 @@ export const NodesPage: React.FC<NodesPageProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [pingingId, setPingingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('records_per_page');
+      return saved ? parseInt(saved, 10) || 50 : 50;
+    } catch {
+      return 50;
+    }
+  });
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    try {
+      localStorage.setItem('records_per_page', String(newSize));
+    } catch {}
+    setPage(1);
+  };
 
   const isOnline = ngrokStatus?.status === 'ONLINE';
   const baseNgrokUrl =
@@ -64,6 +82,9 @@ export const NodesPage: React.FC<NodesPageProps> = ({
       n.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
       String(n.port).includes(searchTerm),
   );
+
+  const totalPages = Math.max(1, Math.ceil(filteredNodes.length / pageSize));
+  const paginatedNodes = filteredNodes.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="space-y-6">
@@ -132,19 +153,19 @@ export const NodesPage: React.FC<NodesPageProps> = ({
         </div>
       ) : (
         <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card overflow-hidden shadow-none">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="w-full overflow-hidden">
+            <table className="w-full text-left text-xs table-fixed">
               <thead className="bg-lavender-wash/70 dark:bg-zinc-950 border-b border-frost-border dark:border-zinc-800 text-clearbit-slate dark:text-zinc-400 font-semibold uppercase tracking-caption">
                 <tr>
-                  <th className="py-3 px-4 w-48">Node Info</th>
-                  <th className="py-3 px-4 w-44 whitespace-nowrap">Local Target</th>
-                  <th className="py-3 px-4">Live Block URL</th>
-                  <th className="py-3 px-4 w-32 whitespace-nowrap text-center">Status</th>
-                  <th className="py-3 px-4 w-20 whitespace-nowrap text-center">Actions</th>
+                  <th className="py-3 px-3 w-40">Node Info</th>
+                  <th className="py-3 px-3 w-36 whitespace-nowrap">Local Target</th>
+                  <th className="py-3 px-3">Live Block URL</th>
+                  <th className="py-3 px-3 w-28 whitespace-nowrap text-center">Status</th>
+                  <th className="py-3 px-3 w-16 whitespace-nowrap text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-frost-border dark:divide-zinc-800 text-midnight-ink dark:text-zinc-300">
-                {filteredNodes.map((node) => {
+                {paginatedNodes.map((node) => {
                   const liveUrl = `${baseNgrokUrl}/${node.slug}`;
                   const isHealthy = node.last_health_status === 'HEALTHY';
 
@@ -203,9 +224,9 @@ export const NodesPage: React.FC<NodesPageProps> = ({
                       </td>
 
                       {/* Live Block URL */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center space-x-1.5">
-                          <div className="font-mono text-xs text-electric-blue dark:text-sky-400 bg-cobalt-surface/10 dark:bg-sky-950/40 border border-cobalt-surface/30 dark:border-sky-800 px-2.5 py-1 rounded-btn select-all whitespace-nowrap">
+                      <td className="py-3 px-3 min-w-0">
+                        <div className="flex items-center space-x-1.5 min-w-0">
+                          <div className="font-mono text-xs text-electric-blue dark:text-sky-400 bg-cobalt-surface/10 dark:bg-sky-950/40 border border-cobalt-surface/30 dark:border-sky-800 px-2.5 py-1 rounded-btn select-all truncate min-w-0" title={liveUrl}>
                             {liveUrl}
                           </div>
                           <button
@@ -273,6 +294,59 @@ export const NodesPage: React.FC<NodesPageProps> = ({
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-lavender-wash/40 dark:bg-zinc-950 border-t border-frost-border dark:border-zinc-800 text-xs text-clearbit-slate dark:text-zinc-400 font-sans">
+            <div>
+              {filteredNodes.length > 0 ? (
+                <span>
+                  Page <strong className="text-midnight-ink dark:text-zinc-200">{page}</strong> of{' '}
+                  <strong className="text-midnight-ink dark:text-zinc-200">{totalPages}</strong> ({filteredNodes.length} nodes)
+                </span>
+              ) : (
+                <span>0 nodes</span>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <div className="inline-flex items-center space-x-2">
+                <span className="text-clearbit-slate/80 dark:text-zinc-400 text-xs">Records per page:</span>
+                <div className="relative inline-flex items-center">
+                  <select
+                    value={pageSize}
+                    onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                    className="appearance-none bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-700 rounded-btn text-xs font-semibold text-midnight-ink dark:text-zinc-200 pl-2.5 pr-7 h-7 focus:outline-none cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={200}>200</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-mist dark:text-zinc-400 absolute right-1.5 pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="h-4 w-px bg-frost-border dark:bg-zinc-700" />
+
+              <div className="flex items-center space-x-1.5">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="px-2.5 h-7 bg-paper dark:bg-zinc-800 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 disabled:opacity-35 disabled:cursor-not-allowed hover:bg-lavender-wash dark:hover:bg-zinc-700 transition-colors flex items-center justify-center font-medium"
+                >
+                  Previous
+                </button>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="px-2.5 h-7 bg-paper dark:bg-zinc-800 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 disabled:opacity-35 disabled:cursor-not-allowed hover:bg-lavender-wash dark:hover:bg-zinc-700 transition-colors flex items-center justify-center font-medium"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
