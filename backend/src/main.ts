@@ -8,7 +8,12 @@ import * as fs from 'fs';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  // Disable global body parsing so reverse proxy routes (webhooks, SSE, uploads) receive raw, unconsumed streams
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  // Body parsing strictly scoped to internal management API
+  app.use('/api', express.json({ limit: '10mb' }));
+  app.use('/api', express.urlencoded({ extended: true, limit: '10mb' }));
 
   // Enable global validation pipe
   app.useGlobalPipes(

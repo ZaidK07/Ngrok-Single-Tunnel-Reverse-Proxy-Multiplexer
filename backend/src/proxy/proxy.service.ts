@@ -48,6 +48,23 @@ export class ProxyService implements OnModuleInit {
     this.proxy.on('proxyRes', (proxyRes, req: any, res: any) => {
       this.handleProxyResponse(proxyRes, req, res);
     });
+
+    // Safety fallback: re-stream body if it was ever parsed by an upstream middleware
+    this.proxy.on('proxyReq', (proxyReq, req: any) => {
+      if (req.body && !req._readableState?.flowing && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+        const contentType = (req.headers['content-type'] || '').toLowerCase();
+        let bodyData: string | Buffer = '';
+        if (contentType.includes('application/json')) {
+          bodyData = JSON.stringify(req.body);
+        } else if (contentType.includes('application/x-www-form-urlencoded')) {
+          bodyData = new URLSearchParams(req.body).toString();
+        }
+        if (bodyData) {
+          proxyReq.setHeader('content-length', Buffer.byteLength(bodyData));
+          proxyReq.write(bodyData);
+        }
+      }
+    });
   }
 
   onModuleInit() {
@@ -95,9 +112,14 @@ export class ProxyService implements OnModuleInit {
       const candidateSlug = segments[0].toLowerCase();
       const node = activeNodesMap.get(candidateSlug);
       if (node) {
-        // Enforce trailing slash on bare slug for deterministic HTML relative base resolution
-        // e.g. /custom-wiki -> 301 to /custom-wiki/
-        if (segments.length === 1 && !rawPath.startsWith(`/${segments[0]}/`)) {
+        // Enforce trailing slash on bare slug ONLY for GET/HEAD browser HTML navigation
+        // (e.g. browser visiting /custom-wiki -> 301 to /custom-wiki/).
+        // Webhooks and APIs sending POST/PUT or asking for JSON must NEVER be redirected!
+        const method = (req.method || 'GET').toUpperCase();
+        const isSafeMethod = method === 'GET' || method === 'HEAD';
+        const acceptsHtml = (req.headers?.['accept'] || '').includes('text/html');
+
+        if (isSafeMethod && acceptsHtml && segments.length === 1 && !rawPath.startsWith(`/${segments[0]}/`)) {
           return {
             node,
             targetPath: '/',
