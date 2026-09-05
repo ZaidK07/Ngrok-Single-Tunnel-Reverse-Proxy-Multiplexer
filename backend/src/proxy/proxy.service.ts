@@ -10,9 +10,9 @@ import * as zlib from 'zlib';
 export interface ResolvedNode {
   node: NodeEntity;
   targetPath: string;
-  matchedTier: 1 | 2;
-  isTrailingSlashRedirect?: boolean;
-  redirectUrl?: string;
+  matchedTier: 1 | 2 | 3;
+  isSwitchPage?: boolean;
+  switchNode?: NodeEntity;
   baseSlug?: string;
 }
 
@@ -68,18 +68,52 @@ export class ProxyService implements OnModuleInit {
   }
 
   onModuleInit() {
-    this.logger.log('Reverse Proxy Engine online with Deterministic Subpath Isolation.');
+    this.logger.log('Reverse Proxy Engine online with Instant Sanitation and Webhook Scoping.');
+  }
+
+  /**
+   * Helper to parse cookie header
+   */
+  private parseCookies(cookieHeader: string | undefined): Record<string, string> {
+    const cookies: Record<string, string> = {};
+    if (!cookieHeader) return cookies;
+    const items = cookieHeader.split(';');
+    for (const item of items) {
+      const [name, ...val] = item.trim().split('=');
+      if (name) {
+        cookies[name.trim()] = decodeURIComponent(val.join('=').trim());
+      }
+    }
+    return cookies;
+  }
+
+  /**
+   * Helper to strip internal cache-busting parameter before forwarding to local app
+   */
+  private cleanForwardPath(url: string): string {
+    if (!url || !url.includes('__switch=')) return url || '/';
+    try {
+      const [p, q] = url.split('?');
+      if (!q) return p || '/';
+      const params = new URLSearchParams(q);
+      params.delete('__switch');
+      const remaining = params.toString();
+      return remaining ? `${p}?${remaining}` : (p || '/');
+    } catch {
+      return url || '/';
+    }
   }
 
   /**
    * Resolves which node handles this request:
-   * 1. Direct Subpath Route: /<node_slug> or /<node_slug>/...
+   * 1. Direct Slug Match: /<node_slug> or /<node_slug>/...
    * 2. Referer Header Scoping: naked subresources (e.g. /@vite/client or /src/index.css)
+   * 3. Active Cookie Match (__active_node) for Root / and all naked assets / WebSockets
+   * 4. Default / Fallback: Single Active Node
    */
   async resolveTargetNode(req: any): Promise<ResolvedNode | null> {
     const rawPath = req.url || '/';
     const pathWithoutQuery = rawPath.split('?')[0];
-    const queryString = rawPath.includes('?') ? rawPath.substring(rawPath.indexOf('?')) : '';
     const segments = pathWithoutQuery.split('/').filter(Boolean);
 
     // Reserved system paths that should never be proxied to target nodes
@@ -94,8 +128,10 @@ export class ProxyService implements OnModuleInit {
 
     const allActiveNodes = await this.nodesService.findAll();
     const activeNodesMap = new Map<string, NodeEntity>();
+    let firstActiveNode: NodeEntity | null = null;
     for (const node of allActiveNodes) {
       if (node.is_active) {
+        if (!firstActiveNode) firstActiveNode = node;
         activeNodesMap.set(node.slug.toLowerCase(), node);
         activeNodesMap.set(node.id.toLowerCase(), node);
       }
@@ -105,32 +141,33 @@ export class ProxyService implements OnModuleInit {
       return null;
     }
 
+    const method = (req.method || 'GET').toUpperCase();
+    const isSafeMethod = method === 'GET' || method === 'HEAD';
+    const acceptsHtml = (req.headers?.['accept'] || '').includes('text/html');
+
     // =========================================================================
-    // 1. Direct Subpath Route Match: /<node_slug> or /<node_slug>/...
+    // 1. Direct Slug Match: /<node_slug> or /<node_slug>/...
     // =========================================================================
     if (segments.length >= 1) {
       const candidateSlug = segments[0].toLowerCase();
       const node = activeNodesMap.get(candidateSlug);
       if (node) {
-        // Enforce trailing slash on bare slug ONLY for GET/HEAD browser HTML navigation
-        // (e.g. browser visiting /custom-wiki -> 301 to /custom-wiki/).
-        // Webhooks and APIs sending POST/PUT or asking for JSON must NEVER be redirected!
-        const method = (req.method || 'GET').toUpperCase();
-        const isSafeMethod = method === 'GET' || method === 'HEAD';
-        const acceptsHtml = (req.headers?.['accept'] || '').includes('text/html');
-
-        if (isSafeMethod && acceptsHtml && segments.length === 1 && !rawPath.startsWith(`/${segments[0]}/`)) {
+        // Case A: Browser HTML navigation to /slug or /slug/
+        // Returns the Instant Sanitation & Switcher Page that wipes previous Service Workers/caches
+        // and hard-replaces to / with a timestamp so modern browsers NEVER de-duplicate the navigation!
+        if (isSafeMethod && acceptsHtml && segments.length === 1) {
           return {
             node,
             targetPath: '/',
             matchedTier: 1,
-            isTrailingSlashRedirect: true,
-            redirectUrl: `/${segments[0]}/${queryString}`,
+            isSwitchPage: true,
+            switchNode: node,
             baseSlug: node.slug,
           };
         }
 
-        // Calculate forwarded targetPath
+        // Case B: Direct Webhook, API, or deep asset request (e.g. POST /my-epic-weebhook-07 or /custom-wiki/api/data)
+        // Passes directly to target port without redirect or cookie dependency!
         let targetPath = rawPath;
         if (node.strip_prefix) {
           const prefix = `/${segments[0]}`;
@@ -142,7 +179,7 @@ export class ProxyService implements OnModuleInit {
 
         return {
           node,
-          targetPath,
+          targetPath: this.cleanForwardPath(targetPath),
           matchedTier: 1,
           baseSlug: node.slug,
         };
@@ -150,30 +187,54 @@ export class ProxyService implements OnModuleInit {
     }
 
     // =========================================================================
-    // 2. Referer Header Scoping (Safety Net for un-prefixed subresources)
-    // When an asset (e.g. /@vite/client or /src/index.css) is requested without prefix,
-    // inspect Referer: if it came from /<node_slug>/..., route to that node!
+    // 2. Referer Header Scoping: naked subresources (e.g. /@vite/client or /src/index.css)
     // =========================================================================
     const referer = req.headers?.['referer'] || req.headers?.['referrer'];
     if (referer && typeof referer === 'string') {
       try {
         const refUrl = new URL(referer);
         const refSegments = refUrl.pathname.split('/').filter(Boolean);
-        if (refSegments.length >= 1) {
-          const refSlug = refSegments[0].toLowerCase();
-          const node = activeNodesMap.get(refSlug);
-          if (node) {
+        for (const seg of refSegments) {
+          const matched = activeNodesMap.get(seg.toLowerCase());
+          if (matched) {
             return {
-              node,
-              targetPath: rawPath,
+              node: matched,
+              targetPath: this.cleanForwardPath(rawPath),
               matchedTier: 2,
-              baseSlug: node.slug,
+              baseSlug: matched.slug,
             };
           }
         }
       } catch {
         // Ignore invalid referer URLs
       }
+    }
+
+    // =========================================================================
+    // 3. Active Cookie Match (__active_node) for Root / and all naked assets / WebSockets
+    // =========================================================================
+    const cookies = this.parseCookies(req.headers?.cookie);
+    const activeCookie = (cookies['__active_node'] || '').toLowerCase();
+    if (activeCookie && activeNodesMap.has(activeCookie)) {
+      const node = activeNodesMap.get(activeCookie)!;
+      return {
+        node,
+        targetPath: this.cleanForwardPath(rawPath),
+        matchedTier: 3,
+        baseSlug: node.slug,
+      };
+    }
+
+    // =========================================================================
+    // 4. Default / Fallback: Single Active Node
+    // =========================================================================
+    if (firstActiveNode) {
+      return {
+        node: firstActiveNode,
+        targetPath: this.cleanForwardPath(rawPath),
+        matchedTier: 3,
+        baseSlug: firstActiveNode.slug,
+      };
     }
 
     return null;
@@ -188,15 +249,98 @@ export class ProxyService implements OnModuleInit {
     resolved: ResolvedNode,
     startTime: number,
   ) {
-    const { node, targetPath, isTrailingSlashRedirect, redirectUrl, baseSlug } = resolved;
-    const originalUrl = req.url;
+    // 1. Handle Instant Sanitation & Switcher Page for Browser UI Navigation
+    if (resolved.isSwitchPage && resolved.switchNode) {
+      const node = resolved.switchNode;
+      res.setHeader(
+        'Set-Cookie',
+        `__active_node=${node.slug}; Path=/; Max-Age=31536000; SameSite=Lax`,
+      );
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Clear-Site-Data', '"cache"');
 
-    // 1. Enforce trailing slash for deterministic subpath base URL
-    if (isTrailingSlashRedirect && redirectUrl) {
-      return res.redirect(301, redirectUrl);
+      return res.type('html').send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Routing to ${node.name}...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      padding: 1.5rem 2.25rem;
+      border-radius: 0.75rem;
+      text-align: center;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid #27272a;
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin: 0 auto 0.85rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <div style="font-weight:600; font-size: 1rem; color: #38bdf8;">Routing to ${node.name}</div>
+    <div style="font-size: 0.8rem; color: #71717a; margin-top: 0.35rem; font-family: monospace;">localhost:${node.port}</div>
+  </div>
+
+  <script>
+    (async function() {
+      // 1. Instantly kill all rogue Service Workers from previous apps
+      if ('serviceWorker' in navigator) {
+        try {
+          var regs = await navigator.serviceWorker.getRegistrations();
+          for (var i = 0; i < regs.length; i++) {
+            await regs[i].unregister();
+          }
+        } catch (e) {}
+      }
+
+      // 2. Clear all previous site CacheStorage to eliminate cross-app collisions
+      if ('caches' in window) {
+        try {
+          var keys = await caches.keys();
+          for (var i = 0; i < keys.length; i++) {
+            await caches.delete(keys[i]);
+          }
+        } catch (e) {}
+      }
+
+      // 3. Set active node cookie immediately in browser
+      document.cookie = "__active_node=${node.slug}; path=/; max-age=31536000; SameSite=Lax";
+
+      // 4. Instant hard navigation to root / with timestamp (forces browser to reload without de-duplication)
+      window.location.replace('/?__switch=' + Date.now());
+    })();
+  </script>
+</body>
+</html>`);
     }
 
-    (req as any).__baseSlug = baseSlug || node.slug;
+    const { node, targetPath } = resolved;
+    const originalUrl = req.url;
+
     req.url = targetPath; // Set forwarded path
     const targetUrl = `http://127.0.0.1:${node.port}`;
 
@@ -237,36 +381,22 @@ export class ProxyService implements OnModuleInit {
   }
 
   /**
-   * Handle proxy responses: rewrite HTML with <base> and client shim, stream other media
+   * Handle proxy responses: stream media/APIs, sanitize HTML
    */
   private handleProxyResponse(proxyRes: http.IncomingMessage, req: any, res: Response) {
     if (res.headersSent) return;
 
     const contentType = (proxyRes.headers['content-type'] || '').toLowerCase();
     const isHtml = contentType.includes('text/html');
-    const slug = req.__baseSlug || '';
 
-    // Scope cookies to this node's subpath prefix so different nodes never overwrite each other's cookies
-    const setCookie = proxyRes.headers['set-cookie'];
-    if (setCookie && slug) {
-      const prefix = `/${slug}`;
-      const rewrittenCookies = (Array.isArray(setCookie) ? setCookie : [setCookie]).map((c) => {
-        if (/Path=\//i.test(c)) {
-          return c.replace(/Path=\/(?!\w)/i, `Path=${prefix}/`);
-        }
-        return `${c}; Path=${prefix}/`;
-      });
-      proxyRes.headers['set-cookie'] = rewrittenCookies;
-    }
-
-    // For non-HTML responses (JS, CSS, images, JSON, media, etc.): direct high-speed pipe
+    // For non-HTML responses (JS, CSS, images, JSON, SSE, audio, video, etc.): direct high-speed pipe
     if (!isHtml) {
       res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
       proxyRes.pipe(res);
       return;
     }
 
-    // For HTML responses: buffer, decompress if needed, rewrite root-relative paths & inject base/shim
+    // For HTML responses: buffer, decompress if needed, inject Service Worker killer & anti-cache headers
     const chunks: Buffer[] = [];
     proxyRes.on('data', (chunk) => chunks.push(chunk));
     proxyRes.on('end', () => {
@@ -292,8 +422,22 @@ export class ProxyService implements OnModuleInit {
 
       let html = decompressed.toString('utf-8');
 
-      if (slug) {
-        html = this.injectSubpathShim(html, slug);
+      // Inject Service Worker killer into <head> so rogue workers never hijack other apps
+      const swSanitizer = `
+<script id="__gw_sw_sanitizer__">
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    for (var i = 0; i < regs.length; i++) {
+      regs[i].unregister();
+    }
+  });
+}
+</script>
+`;
+      if (/<head[^>]*>/i.test(html)) {
+        html = html.replace(/(<head[^>]*>)/i, `$1\n${swSanitizer}`);
+      } else {
+        html = swSanitizer + html;
       }
 
       const modifiedBuffer = Buffer.from(html, 'utf-8');
@@ -321,123 +465,21 @@ export class ProxyService implements OnModuleInit {
   }
 
   /**
-   * Rewrites root-relative attributes in HTML and injects <base> and client shim
-   */
-  private injectSubpathShim(html: string, slug: string): string {
-    const prefix = `/${slug}`;
-
-    // 1. Rewrite root-relative attributes in HTML so initial script/css/img tags load from /<slug>/...
-    // Matches src="/path" and href="/path" where /path is not protocol-relative (//) and not already prefixed
-    const srcRegex = new RegExp(`src="/(?!/|${slug}/)`, 'gi');
-    html = html.replace(srcRegex, `src="${prefix}/`);
-
-    const hrefRegex = new RegExp(`href="/(?!/|${slug}/)`, 'gi');
-    html = html.replace(hrefRegex, `href="${prefix}/`);
-
-    const actionRegex = new RegExp(`action="/(?!/|${slug}/)`, 'gi');
-    html = html.replace(actionRegex, `action="${prefix}/`);
-
-    // 2. Prepare Base tag and Client-side Interceptor Script
-    const shimScript = `
-<base href="${prefix}/">
-<script id="__ngrok_subpath_gateway_shim__">
-(function() {
-  var prefix = '${prefix}';
-  window.__NGROK_BASE__ = prefix;
-
-  // Intercept window.fetch
-  if (typeof window.fetch === 'function') {
-    var origFetch = window.fetch;
-    window.fetch = function(resource, init) {
-      if (typeof resource === 'string') {
-        if (resource.startsWith('/') && !resource.startsWith(prefix) && !resource.startsWith('//')) {
-          resource = prefix + resource;
-        }
-      } else if (resource && typeof resource.url === 'string') {
-        try {
-          var u = new URL(resource.url, window.location.href);
-          if (u.origin === window.location.origin && u.pathname.startsWith('/') && !u.pathname.startsWith(prefix)) {
-            resource = new Request(prefix + u.pathname + u.search, resource);
-          }
-        } catch (e) {}
-      }
-      return origFetch.call(this, resource, init);
-    };
-  }
-
-  // Intercept XMLHttpRequest
-  if (window.XMLHttpRequest) {
-    var origOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(method, url) {
-      if (typeof url === 'string' && url.startsWith('/') && !url.startsWith(prefix) && !url.startsWith('//')) {
-        url = prefix + url;
-      }
-      return origOpen.apply(this, arguments);
-    };
-  }
-
-  // Intercept WebSocket (Vite HMR, Socket.io, etc.)
-  if (window.WebSocket) {
-    var OrigWS = window.WebSocket;
-    var ShimmedWS = function(url, protocols) {
-      if (typeof url === 'string') {
-        try {
-          var parsed = new URL(url, window.location.href.replace(/^http/, 'ws'));
-          if (parsed.host === window.location.host && parsed.pathname.startsWith('/') && !parsed.pathname.startsWith(prefix)) {
-            parsed.pathname = prefix + parsed.pathname;
-            url = parsed.toString();
-          }
-        } catch (e) {}
-      }
-      return arguments.length > 1 ? new OrigWS(url, protocols) : new OrigWS(url);
-    };
-    ShimmedWS.prototype = OrigWS.prototype;
-    window.WebSocket = ShimmedWS;
-  }
-
-  // Intercept History pushState & replaceState for SPA routers (React Router, Vue Router, etc.)
-  if (window.history && history.pushState) {
-    var origPush = history.pushState;
-    history.pushState = function(state, title, url) {
-      if (typeof url === 'string' && url.startsWith('/') && !url.startsWith(prefix) && !url.startsWith('//')) {
-        url = prefix + url;
-      }
-      return origPush.call(this, state, title, url);
-    };
-    var origReplace = history.replaceState;
-    history.replaceState = function(state, title, url) {
-      if (typeof url === 'string' && url.startsWith('/') && !url.startsWith(prefix) && !url.startsWith('//')) {
-        url = prefix + url;
-      }
-      return origReplace.call(this, state, title, url);
-    };
-  }
-})();
-</script>
-`;
-
-    // 3. Inject right after <head> or at start of HTML
-    if (/<head[^>]*>/i.test(html)) {
-      html = html.replace(/(<head[^>]*>)/i, `$1\n${shimScript}`);
-    } else if (/<html[^>]*>/i.test(html)) {
-      html = html.replace(/(<html[^>]*>)/i, `$1\n<head>${shimScript}</head>`);
-    } else {
-      html = shimScript + html;
-    }
-
-    return html;
-  }
-
-  /**
    * Handle WebSocket Upgrade
    */
-  handleWebSocketUpgrade(req: http.IncomingMessage, socket: any, head: any, node: NodeEntity, targetPath?: string) {
+  handleWebSocketUpgrade(
+    req: http.IncomingMessage,
+    socket: any,
+    head: any,
+    node: NodeEntity,
+    targetPath?: string,
+  ) {
     if (targetPath) {
-      req.url = targetPath;
+      req.url = this.cleanForwardPath(targetPath);
     }
     const targetUrl = `http://127.0.0.1:${node.port}`;
     this.logger.log(`Proxying WebSocket upgrade for [${node.name}] -> localhost:${node.port}${req.url}`);
-    
+
     this.proxy.ws(req, socket, head, {
       target: targetUrl,
       changeOrigin: true,
