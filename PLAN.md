@@ -13,9 +13,9 @@ The system is split into two cleanly decoupled applications:
 
 ---
 
-## 2. Core Architecture & The 3-Tier Routing Cascade
+## 2. Core Architecture & The On-The-Fly Subpath Virtualization Engine
 
-When traffic arrives from the public internet via the single Ngrok public URL (`https://<ngrok-domain>`), it reaches the Gateway listening on the configured main port (`7979`). The Gateway routes requests to target local ports using a **3-Tier Cascade Engine**:
+When traffic arrives from the public internet via the single Ngrok public URL (`https://<ngrok-domain>`), it reaches the Gateway listening on the configured main port (`7779`). The Gateway routes requests to target local ports using a **Subpath Virtualization & 3-Tier Cascade Engine**:
 
 ```
                                   [ Public Internet ]
@@ -23,47 +23,59 @@ When traffic arrives from the public internet via the single Ngrok public URL (`
                                    [ Ngrok Tunnel ]
                                            │
                        ┌───────────────────▼───────────────────┐
-                       │   Gateway Server (Port 7979 - NestJS) │
+                       │   Gateway Server (Port 7779 - NestJS) │
                        └───────────────────┬───────────────────┘
                                            │
                 ┌──────────────────────────┼──────────────────────────┐
                 │                          │                          │
-        [ Tier 1: Path Match ]    [ Tier 2: Referer Scoped ]   [ Tier 3: Injected HTML Rewriter ]
-        /node_id/...              Naked sub-resources           Rewrites `<base href="/node_id/">`
-        Explicit for APIs/Hooks   Tab-isolated for Web UIs      and asset links on the fly
+        [ Tier 1: Path Match ]    [ Tier 2: Referer Scoped ]   [ Tier 3: Active Cookie ]
+        /<node_id>/...            Naked sub-resources          Fallback scoping for
+        APIs, Webhooks & Apps     Tab-isolated for Web UIs     root / navigation
                 │                          │                          │
                 └──────────────────────────┼──────────────────────────┘
                                            │
-                        ┌──────────────────┴──────────────────┐
-                        │   Local Dispatcher & Proxy Stream   │
-                        └──────────────────┬──────────────────┘
+                       ┌───────────────────▼───────────────────┐
+                       │ On-The-Fly Virtualization Engine      │
+                       │ • HTML <base> & SW Sanitizer Inject   │
+                       │ • JS ES Import & Vite HMR Rewrite     │
+                       │ • React Router Basename Dynamic Fix   │
+                       │ • Raw Webhook Stream Bypass           │
+                       └───────────────────┬───────────────────┘
                                            │
          ┌──────────────────┬──────────────┴─────┬──────────────────┐
          ▼                  ▼                    ▼                  ▼
-[ localhost:3000 ]  [ localhost:5000 ]   [ localhost:8000 ]  [ Dashboard / Admin ]
-  React Frontend       NestJS API           Python Bot           Gateway UI
+[ localhost:5174 ]  [ localhost:9911 ]   [ localhost:4000 ]  [ Dashboard / Admin ]
+  Wiki (Vite/React)    Storefront (Next)    Webhook Handler      Gateway UI
 ```
 
-### The 3 Tiers Explained:
+### The Tiers & Virtualization Mechanics:
 
-#### Tier 1: Explicit Path Namespace Routing
-* **Target:** Webhooks, REST APIs, GraphQL, and direct links.
-* **Mechanism:** The URL starts with `/<node_id>/...` (e.g., `https://my-ngrok.com/stripe-hook/events`).
-* **Behavior:** The gateway extracts `node_id`, looks up the target port (e.g., `6000`), strips `/stripe-hook`, and proxies the full request to `http://localhost:6000/events`.
+#### Tier 1: Explicit Subpath Namespace & Webhook Routing
+* **Target:** Web applications, Webhooks, REST APIs, GraphQL, and direct links.
+* **Mechanism:** The URL starts with `/<node_id>/...` (e.g., `https://my-ngrok.com/custom-wiki/` or `POST /my-epic-webhook-07`).
+* **Behavior:** The gateway extracts `node_id`, matches the active node, strips or preserves the prefix according to configuration, and proxies the request to `http://localhost:<port>/...`.
+* **Trailing Slash Enforcement:** Transparently issues a 301 redirect on bare slugs (`/<node_id>` $\rightarrow$ `/<node_id>/`) so browser WHATWG relative resolution works seamlessly.
+* **Webhook & Raw Stream Guarantee:** Body-parsing is completely bypassed for proxy routes; raw binary payloads, chunked streams, and cryptographic HMAC signatures arrive byte-for-byte unaltered with zero redirects.
 
-#### Tier 2: Referer Header Tab Isolation (Zero Cross-Talk for Multiple UIs)
-* **Target:** Simultaneous Web UIs (React, Vue, Next.js, Swagger) running in multiple browser tabs.
-* **Problem Solved:** When a web UI loads, it requests naked assets like `/static/js/bundle.js` or `/main.css` without the `/<node_id>/` prefix. Cookies fail here because they bleed across all tabs of the same domain.
-* **Mechanism:** Every modern browser attaches a `Referer` header to asset requests (e.g., `Referer: https://my-ngrok.com/storefront/home`). The proxy parses the `Referer` header, identifies that the request originated from `storefront` (port 3000), and routes the asset directly to `http://localhost:3000/static/js/bundle.js`.
-* **Guarantee:** Tab 1 (port 3000) and Tab 2 (port 4000) operate simultaneously with zero asset collisions.
+#### Tier 2: Referer Header Scoping (Naked Subresource Isolation)
+* **Target:** Naked asset requests (`/@vite/client`, `/src/index.css`) that do not carry the subpath prefix.
+* **Mechanism:** Parses the browser's `Referer` header to identify the originating app slug and routes directly to the correct local port.
 
-#### Tier 3: HTML `<base>` Tag & Runtime Rewriting
-* **Target:** Single Page Applications (SPAs) and HTML pages.
-* **Mechanism:** For `text/html` responses, the proxy injects `<base href="/<node_id>/">` into the `<head>` and dynamically rewrites absolute links (`href="/..."`, `src="/..."`) to `href="/<node_id>/..."`.
-* **Client Interceptor:** Injects a lightweight helper script that prefixes client-side `fetch()` and `XMLHttpRequest()` calls so dynamic AJAX requests preserve the node context.
+#### Tier 3: Active Cookie Scoping Fallback
+* **Target:** Browser-level fallbacks and root `/` requests.
+* **Mechanism:** Maintains `__active_node` session cookie to route root navigations cleanly.
+
+#### On-The-Fly JavaScript Module Virtualization
+* **ES Module Import Rewriter:** Browser-native JavaScript imports (`from "/..."`, `import "/..."`, `import("/...")`) bypass HTML `<base>`. The gateway dynamically intercepts JavaScript chunks and prepends `/<slug>/` on-the-fly.
+* **React Router 6/7 Basename Injection:** Arbitrary React Router applications with `<BrowserRouter>` are dynamically patched in the served bundle to default to `window.__GW_BASENAME__`, rendering subpath routes (`<Route path="/" />`) immediately without blank screens and with **zero code changes** to external projects.
+* **Vite HMR WebSocket Virtualization:** Patches `__HMR_BASE__ = "/<slug>/"` in `/@vite/client` so hot-module reloading and full-duplex WebSocket connections route cleanly to `wss://.../<slug>/?token=...`.
+
+#### HTML & CSS Virtualization
+* **HTML Sanitization & Shim:** Injects `<base href="/<slug>/">`, `window.__GW_BASENAME__ = "/<slug>"`, and a Service Worker cleanup script into `<head>` to unregister rogue background workers from other projects.
+* **CSS URL Rewriting:** Rewrites `url(/...)` $\rightarrow$ `url(/<slug>/...)` for fonts and images.
 
 #### WebSocket & Protocol Upgrades
-* The reverse proxy listens for HTTP `Upgrade: websocket` headers and establishes full-duplex tunnel connections directly to target ports (supporting Socket.io, HMR, GraphQL subscriptions).
+* The reverse proxy intercepts HTTP `Upgrade: websocket` headers, extracts the target node from the URL subpath, strips the prefix, and establishes full-duplex tunnel connections directly to target ports (supporting Socket.io, HMR, GraphQL subscriptions).
 
 ---
 
@@ -90,9 +102,9 @@ The following identifiers are reserved for system operations and cannot be used 
 
 ---
 
-## 4. MySQL Database Schema
+## 4. Embedded SQLite Database Schema (WAL Mode)
 
-All system configurations, node states, and traffic logs are persisted in MySQL.
+All system configurations, node states, and traffic logs are persisted locally using embedded SQLite via `better-sqlite3` with Write-Ahead Logging (WAL) enabled (`backend/data/gateway.sqlite`). No external database servers are required.
 
 ### 4.1 Table: `nodes`
 Stores the configuration and metadata for all proxied endpoints.
