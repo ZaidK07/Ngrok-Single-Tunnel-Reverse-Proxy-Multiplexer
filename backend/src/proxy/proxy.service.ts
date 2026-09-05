@@ -11,8 +11,8 @@ export interface ResolvedNode {
   node: NodeEntity;
   targetPath: string;
   matchedTier: 1 | 2 | 3;
-  isSwitchPage?: boolean;
-  switchNode?: NodeEntity;
+  isTrailingSlashRedirect?: boolean;
+  redirectUrl?: string;
   baseSlug?: string;
 }
 
@@ -114,6 +114,7 @@ export class ProxyService implements OnModuleInit {
   async resolveTargetNode(req: any): Promise<ResolvedNode | null> {
     const rawPath = req.url || '/';
     const pathWithoutQuery = rawPath.split('?')[0];
+    const queryString = rawPath.includes('?') ? rawPath.substring(rawPath.indexOf('?')) : '';
     const segments = pathWithoutQuery.split('/').filter(Boolean);
 
     // Reserved system paths that should never be proxied to target nodes
@@ -152,22 +153,20 @@ export class ProxyService implements OnModuleInit {
       const candidateSlug = segments[0].toLowerCase();
       const node = activeNodesMap.get(candidateSlug);
       if (node) {
-        // Case A: Browser HTML navigation to /slug or /slug/
-        // Returns the Instant Sanitation & Switcher Page that wipes previous Service Workers/caches
-        // and hard-replaces to / with a timestamp so modern browsers NEVER de-duplicate the navigation!
-        if (isSafeMethod && acceptsHtml && segments.length === 1) {
+        // Enforce trailing slash on bare slug for HTML browser navigation
+        // e.g. /custom-wiki -> 301 to /custom-wiki/ so relative <base> resolution works
+        if (isSafeMethod && acceptsHtml && segments.length === 1 && !rawPath.startsWith(`/${segments[0]}/`)) {
           return {
             node,
             targetPath: '/',
             matchedTier: 1,
-            isSwitchPage: true,
-            switchNode: node,
+            isTrailingSlashRedirect: true,
+            redirectUrl: `/${segments[0]}/${queryString}`,
             baseSlug: node.slug,
           };
         }
 
-        // Case B: Direct Webhook, API, or deep asset request (e.g. POST /my-epic-weebhook-07 or /custom-wiki/api/data)
-        // Passes directly to target port without redirect or cookie dependency!
+        // Calculate forwarded targetPath
         let targetPath = rawPath;
         if (node.strip_prefix) {
           const prefix = `/${segments[0]}`;
@@ -249,105 +248,30 @@ export class ProxyService implements OnModuleInit {
     resolved: ResolvedNode,
     startTime: number,
   ) {
-    // 1. Handle Instant Sanitation & Switcher Page for Browser UI Navigation
-    if (resolved.isSwitchPage && resolved.switchNode) {
-      const node = resolved.switchNode;
-      res.setHeader(
-        'Set-Cookie',
-        `__active_node=${node.slug}; Path=/; Max-Age=31536000; SameSite=Lax`,
-      );
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      res.setHeader('Clear-Site-Data', '"cache"');
-
-      return res.type('html').send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Routing to ${node.name}...</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      background: #09090b;
-      color: #fafafa;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-    }
-    .card {
-      background: #18181b;
-      border: 1px solid #27272a;
-      padding: 1.5rem 2.25rem;
-      border-radius: 0.75rem;
-      text-align: center;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-    }
-    .spinner {
-      width: 24px;
-      height: 24px;
-      border: 3px solid #27272a;
-      border-top-color: #38bdf8;
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      margin: 0 auto 0.85rem;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="spinner"></div>
-    <div style="font-weight:600; font-size: 1rem; color: #38bdf8;">Routing to ${node.name}</div>
-    <div style="font-size: 0.8rem; color: #71717a; margin-top: 0.35rem; font-family: monospace;">localhost:${node.port}</div>
-  </div>
-
-  <script>
-    (async function() {
-      // 1. Instantly kill all rogue Service Workers from previous apps
-      if ('serviceWorker' in navigator) {
-        try {
-          var regs = await navigator.serviceWorker.getRegistrations();
-          for (var i = 0; i < regs.length; i++) {
-            await regs[i].unregister();
-          }
-        } catch (e) {}
-      }
-
-      // 2. Clear all previous site CacheStorage to eliminate cross-app collisions
-      if ('caches' in window) {
-        try {
-          var keys = await caches.keys();
-          for (var i = 0; i < keys.length; i++) {
-            await caches.delete(keys[i]);
-          }
-        } catch (e) {}
-      }
-
-      // 3. Set active node cookie immediately in browser
-      document.cookie = "__active_node=${node.slug}; path=/; max-age=31536000; SameSite=Lax";
-
-      // 4. Instant hard navigation to root / with timestamp (forces browser to reload without de-duplication)
-      window.location.replace('/?__switch=' + Date.now());
-    })();
-  </script>
-</body>
-</html>`);
+    // 1. Handle Trailing Slash 301 Redirect for bare slug navigation (e.g. /custom-wiki -> /custom-wiki/)
+    if (resolved.isTrailingSlashRedirect && resolved.redirectUrl) {
+      return res.redirect(301, resolved.redirectUrl);
     }
 
-    const { node, targetPath } = resolved;
+    const { node, targetPath, baseSlug } = resolved;
     const originalUrl = req.url;
+
+    // Attach baseSlug to request object so handleProxyResponse knows which slug to virtualize
+    (req as any).__baseSlug = baseSlug || node.slug;
 
     req.url = targetPath; // Set forwarded path
     const targetUrl = `http://127.0.0.1:${node.port}`;
 
-    // For HTML requests, request uncompressed response from local server for fast zero-overhead rewriting
+    // Request uncompressed responses from local upstream dev servers for fast zero-overhead virtualization
+    delete req.headers['accept-encoding'];
+
+    // Set active node cookie on HTML page loads so any naked sub-requests fallback cleanly to this app
     const acceptsHtml = (req.headers?.accept || '').includes('text/html');
     if (acceptsHtml) {
-      delete req.headers['accept-encoding'];
+      res.setHeader(
+        'Set-Cookie',
+        `__active_node=${node.slug}; Path=/; Max-Age=31536000; SameSite=Lax`,
+      );
     }
 
     // Intercept response finish for traffic logging
@@ -376,27 +300,48 @@ export class ProxyService implements OnModuleInit {
       headers: {
         'x-forwarded-node': node.id,
         'x-forwarded-port': String(node.port),
+        'x-forwarded-slug': node.slug,
       },
     });
   }
 
   /**
-   * Handle proxy responses: stream media/APIs, sanitize HTML
+   * Handle proxy responses: on-the-fly streaming virtualization for HTML, JS, CSS
    */
   private handleProxyResponse(proxyRes: http.IncomingMessage, req: any, res: Response) {
     if (res.headersSent) return;
 
     const contentType = (proxyRes.headers['content-type'] || '').toLowerCase();
-    const isHtml = contentType.includes('text/html');
+    const slug: string | undefined = req.__baseSlug;
 
-    // For non-HTML responses (JS, CSS, images, JSON, SSE, audio, video, etc.): direct high-speed pipe
-    if (!isHtml) {
+    const isHtml = contentType.includes('text/html');
+    const isJs =
+      Boolean(slug) &&
+      (contentType.includes('javascript') ||
+        contentType.includes('application/x-javascript') ||
+        contentType.includes('application/ecmascript') ||
+        req.url.endsWith('.js') ||
+        req.url.includes('.js?') ||
+        req.url.includes('.jsx') ||
+        req.url.includes('.ts') ||
+        req.url.includes('.tsx') ||
+        req.url.includes('/@vite/') ||
+        req.url.includes('/@fs/') ||
+        req.url.includes('/@id/'));
+    const isCss =
+      Boolean(slug) &&
+      (contentType.includes('text/css') ||
+        req.url.endsWith('.css') ||
+        req.url.includes('.css?'));
+
+    // For non-transformable responses (media, images, binary, SSE, APIs, Webhooks): direct high-speed pipe
+    if (!isHtml && !isJs && !isCss) {
       res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
       proxyRes.pipe(res);
       return;
     }
 
-    // For HTML responses: buffer, decompress if needed, inject Service Worker killer & anti-cache headers
+    // Buffer and decompress response body
     const chunks: Buffer[] = [];
     proxyRes.on('data', (chunk) => chunks.push(chunk));
     proxyRes.on('end', () => {
@@ -420,48 +365,140 @@ export class ProxyService implements OnModuleInit {
         decompressed = bodyBuffer;
       }
 
-      let html = decompressed.toString('utf-8');
+      let content = decompressed.toString('utf-8');
 
-      // Inject Service Worker killer into <head> so rogue workers never hijack other apps
-      const swSanitizer = `
-<script id="__gw_sw_sanitizer__">
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(regs) {
-    for (var i = 0; i < regs.length; i++) {
-      regs[i].unregister();
-    }
-  });
-}
-</script>
-`;
-      if (/<head[^>]*>/i.test(html)) {
-        html = html.replace(/(<head[^>]*>)/i, `$1\n${swSanitizer}`);
-      } else {
-        html = swSanitizer + html;
+      // Virtualize according to content type
+      if (isHtml) {
+        content = slug ? this.transformHtml(content, slug) : this.injectSwSanitizerOnly(content);
+      } else if (isJs && slug) {
+        content = this.transformJs(content, slug);
+      } else if (isCss && slug) {
+        content = this.transformCss(content, slug);
       }
 
-      const modifiedBuffer = Buffer.from(html, 'utf-8');
+      const modifiedBuffer = Buffer.from(content, 'utf-8');
 
       const outgoingHeaders: Record<string, any> = { ...proxyRes.headers };
       delete outgoingHeaders['content-length'];
       delete outgoingHeaders['content-encoding'];
-      outgoingHeaders['content-type'] = 'text/html; charset=utf-8';
+      delete outgoingHeaders['etag'];
+      delete outgoingHeaders['last-modified'];
+
       outgoingHeaders['content-length'] = String(modifiedBuffer.length);
       outgoingHeaders['cache-control'] = 'no-cache, no-store, must-revalidate';
       outgoingHeaders['pragma'] = 'no-cache';
       outgoingHeaders['expires'] = '0';
+
+      if (isHtml) {
+        outgoingHeaders['content-type'] = 'text/html; charset=utf-8';
+      } else if (isJs && !outgoingHeaders['content-type']) {
+        outgoingHeaders['content-type'] = 'application/javascript; charset=utf-8';
+      }
 
       res.writeHead(proxyRes.statusCode || 200, outgoingHeaders);
       res.end(modifiedBuffer);
     });
 
     proxyRes.on('error', (err) => {
-      this.logger.error(`Error processing HTML proxy response: ${err.message}`);
+      this.logger.error(`Error processing proxy response: ${err.message}`);
       if (!res.headersSent) {
         res.writeHead(502);
         res.end('Error processing upstream response');
       }
     });
+  }
+
+  /**
+   * Virtualize HTML for subpath: inject base tag, runtime shim, and rewrite root-absolute asset URLs
+   */
+  private transformHtml(html: string, slug: string): string {
+    const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // 1. Rewrite root-absolute src and href in HTML tags (e.g. src="/src/main.tsx" -> src="/custom-wiki/src/main.tsx")
+    // Ignores protocol-relative URLs (//) and paths already prefixed with /<slug>/
+    const attrRegex = new RegExp(`(src|href)=["']\\/((?!\\/|${escapedSlug}\\/)[^"']*)["']`, 'gi');
+    html = html.replace(attrRegex, `$1="/${slug}/$2"`);
+
+    // 2. Inject <base href="/<slug>/"> and runtime shim + SW killer into <head>
+    const shim = `
+  <base href="/${slug}/">
+  <script id="__gw_subpath_shim__">
+    window.__GW_BASENAME__ = "/${slug}";
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (var i = 0; i < regs.length; i++) {
+          regs[i].unregister();
+        }
+      }).catch(function() {});
+    }
+  </script>
+`;
+
+    if (/<head[^>]*>/i.test(html)) {
+      html = html.replace(/(<head[^>]*>)/i, `$1\n${shim}`);
+    } else {
+      html = shim + html;
+    }
+
+    return html;
+  }
+
+  private injectSwSanitizerOnly(html: string): string {
+    const swSanitizer = `
+<script id="__gw_sw_sanitizer__">
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    for (var i = 0; i < regs.length; i++) {
+      regs[i].unregister();
+    }
+  }).catch(function() {});
+}
+</script>
+`;
+    if (/<head[^>]*>/i.test(html)) {
+      return html.replace(/(<head[^>]*>)/i, `$1\n${swSanitizer}`);
+    }
+    return swSanitizer + html;
+  }
+
+  /**
+   * Virtualize JavaScript: rewrite static & dynamic imports, patch BrowserRouter basename, patch Vite HMR base
+   */
+  private transformJs(js: string, slug: string): string {
+    const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // 1. Static imports/exports: from "/..." -> from "/<slug>/..."
+    const fromRegex = new RegExp(`(from\\s*['"])\\/((?!\\/|${escapedSlug}\\/)[^'"]*)(['"])`, 'g');
+    js = js.replace(fromRegex, `$1/${slug}/$2$3`);
+
+    // 2. Bare side-effect imports: import "/..." -> import "/<slug>/..."
+    const importBareRegex = new RegExp(`(import\\s*['"])\\/((?!\\/|${escapedSlug}\\/)[^'"]*)(['"])`, 'g');
+    js = js.replace(importBareRegex, `$1/${slug}/$2$3`);
+
+    // 3. Dynamic imports: import("/...") -> import("/<slug>/...")
+    const importDynamicRegex = new RegExp(`(import\\s*\\(\\s*['"])\\/((?!\\/|${escapedSlug}\\/)[^'"]*)(['"]\\s*\\))`, 'g');
+    js = js.replace(importDynamicRegex, `$1/${slug}/$2$3`);
+
+    // 4. React Router 6/7 BrowserRouter default basename injection
+    js = js.replace(
+      /function\s+BrowserRouter\s*\(\s*\{\s*basename\s*(?:=[^,}]+)?\s*,/g,
+      `function BrowserRouter({ basename = (typeof window !== 'undefined' && window.__GW_BASENAME__) || undefined,`,
+    );
+
+    // 5. Vite HMR Client WebSocket base injection
+    js = js.replace(/__HMR_BASE__\s*=\s*['"]\/['"]/g, `__HMR_BASE__ = "/${slug}/"`);
+    js = js.replace(/const\s+base\s*=\s*__BASE__\s*\|\|\s*['"]\/['"]/g, `const base = __BASE__ || "/${slug}/"`);
+
+    return js;
+  }
+
+  /**
+   * Virtualize CSS: rewrite url(/...) -> url(/<slug>/...)
+   */
+  private transformCss(css: string, slug: string): string {
+    const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const cssUrlRegex = new RegExp(`url\\(\\s*(['"]?)\\/((?!\\/|${escapedSlug}\\/)[^'")]+)\\1\\s*\\)`, 'gi');
+    return css.replace(cssUrlRegex, `url($1/${slug}/$2$1)`);
   }
 
   /**
