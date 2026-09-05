@@ -62,7 +62,7 @@ export const NodeDetailPage: React.FC<NodeDetailPageProps> = ({
 
   const baseNgrokUrl =
     ngrokStatus?.publicUrl || 'https://unsmooth-jacklyn-unawakening.ngrok-free.dev';
-  const liveUrl = node ? `${baseNgrokUrl}/${node.slug}` : '';
+  const liveUrl = node ? `${baseNgrokUrl}/${node.slug}/` : '';
 
   const fetchLogs = useCallback(async () => {
     if (!nodeId) return;

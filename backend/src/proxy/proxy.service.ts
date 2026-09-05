@@ -5,12 +5,15 @@ import { NodesService } from '../nodes/nodes.service';
 import { TrafficLoggerService } from '../traffic/traffic-logger.service';
 import { NodeEntity } from '../nodes/node.interface';
 import * as http from 'http';
+import * as zlib from 'zlib';
 
 export interface ResolvedNode {
   node: NodeEntity;
   targetPath: string;
-  matchedTier: 1 | 2 | 3;
-  isSwitchRedirect?: boolean;
+  matchedTier: 1 | 2;
+  isTrailingSlashRedirect?: boolean;
+  redirectUrl?: string;
+  baseSlug?: string;
 }
 
 @Injectable()
@@ -27,6 +30,7 @@ export class ProxyService implements OnModuleInit {
       changeOrigin: true,
       xfwd: true,
       secure: false,
+      selfHandleResponse: true,
     });
 
     this.proxy.on('error', (err, req: any, res: any) => {
@@ -39,32 +43,26 @@ export class ProxyService implements OnModuleInit {
         });
       }
     });
+
+    // Custom response interceptor for HTML subpath injection and streaming
+    this.proxy.on('proxyRes', (proxyRes, req: any, res: any) => {
+      this.handleProxyResponse(proxyRes, req, res);
+    });
   }
 
   onModuleInit() {
-    this.logger.log('Reverse Proxy Engine online with Active Node Root Session Multiplexing.');
-  }
-
-  private parseCookies(cookieHeader?: string): Record<string, string> {
-    if (!cookieHeader) return {};
-    return cookieHeader.split(';').reduce((acc, part) => {
-      const [k, v] = part.trim().split('=');
-      if (k && v) acc[k.trim()] = decodeURIComponent(v.trim());
-      return acc;
-    }, {} as Record<string, string>);
+    this.logger.log('Reverse Proxy Engine online with Deterministic Subpath Isolation.');
   }
 
   /**
    * Resolves which node handles this request:
-   * 1. /switch/<node_slug> -> Sets cookie and redirects to root /
-   * 2. Browser visiting /<node_slug> or /<node_slug>/ with text/html -> Sets cookie and redirects to root /
-   * 3. Explicit Path matching /<node_slug>/... for APIs/Webhooks
-   * 4. Referer header matching
-   * 5. Active Node Cookie (__active_node) for Root / and all subpaths
+   * 1. Direct Subpath Route: /<node_slug> or /<node_slug>/...
+   * 2. Referer Header Scoping: naked subresources (e.g. /@vite/client or /src/index.css)
    */
   async resolveTargetNode(req: any): Promise<ResolvedNode | null> {
     const rawPath = req.url || '/';
     const pathWithoutQuery = rawPath.split('?')[0];
+    const queryString = rawPath.includes('?') ? rawPath.substring(rawPath.indexOf('?')) : '';
     const segments = pathWithoutQuery.split('/').filter(Boolean);
 
     // Reserved system paths that should never be proxied to target nodes
@@ -91,57 +89,26 @@ export class ProxyService implements OnModuleInit {
     }
 
     // =========================================================================
-    // 1. Explicit Switch Route: /switch/<node_slug>
-    // Sets active node cookie and redirects to root domain /
+    // 1. Direct Subpath Route Match: /<node_slug> or /<node_slug>/...
     // =========================================================================
-    if (segments.length >= 2 && segments[0].toLowerCase() === 'switch') {
-      const targetSlug = segments[1].toLowerCase();
-      const node = activeNodesMap.get(targetSlug);
-      if (node) {
-        return {
-          node,
-          targetPath: '/',
-          matchedTier: 1,
-          isSwitchRedirect: true,
-        };
-      }
-    }
-
-    // =========================================================================
-    // 2. Browser Navigation to /<node_slug> or /<node_slug>/...
-    // If a browser with HTML accept navigates to the node, switch cookie and redirect to root / or clean subpath!
-    // =========================================================================
-    if (segments.length >= 1 && req.method === 'GET') {
+    if (segments.length >= 1) {
       const candidateSlug = segments[0].toLowerCase();
       const node = activeNodesMap.get(candidateSlug);
-      const acceptsHtml = (req.headers?.accept || '').includes('text/html');
-
-      if (node && acceptsHtml) {
-        let redirectPath = '/';
-        if (segments.length > 1) {
-          const prefix = `/${segments[0]}`;
-          redirectPath = rawPath.substring(prefix.length) || '/';
-          if (!redirectPath.startsWith('/')) {
-            redirectPath = `/${redirectPath}`;
-          }
+      if (node) {
+        // Enforce trailing slash on bare slug for deterministic HTML relative base resolution
+        // e.g. /custom-wiki -> 301 to /custom-wiki/
+        if (segments.length === 1 && !rawPath.startsWith(`/${segments[0]}/`)) {
+          return {
+            node,
+            targetPath: '/',
+            matchedTier: 1,
+            isTrailingSlashRedirect: true,
+            redirectUrl: `/${segments[0]}/${queryString}`,
+            baseSlug: node.slug,
+          };
         }
-        return {
-          node,
-          targetPath: redirectPath,
-          matchedTier: 1,
-          isSwitchRedirect: true,
-        };
-      }
-    }
 
-    // =========================================================================
-    // 3. Explicit Path Namespace Match (e.g. /<node_slug>/api/webhook)
-    // Used by external API callers, webhooks, and explicit path requests
-    // =========================================================================
-    if (segments.length > 0) {
-      const candidateSlug = segments[0].toLowerCase();
-      const node = activeNodesMap.get(candidateSlug);
-      if (node) {
+        // Calculate forwarded targetPath
         let targetPath = rawPath;
         if (node.strip_prefix) {
           const prefix = `/${segments[0]}`;
@@ -150,47 +117,40 @@ export class ProxyService implements OnModuleInit {
             targetPath = `/${targetPath}`;
           }
         }
-        return { node, targetPath, matchedTier: 1 };
+
+        return {
+          node,
+          targetPath,
+          matchedTier: 1,
+          baseSlug: node.slug,
+        };
       }
     }
 
     // =========================================================================
-    // 4. Referer Header Scoping
+    // 2. Referer Header Scoping (Safety Net for un-prefixed subresources)
+    // When an asset (e.g. /@vite/client or /src/index.css) is requested without prefix,
+    // inspect Referer: if it came from /<node_slug>/..., route to that node!
     // =========================================================================
     const referer = req.headers?.['referer'] || req.headers?.['referrer'];
     if (referer && typeof referer === 'string') {
       try {
         const refUrl = new URL(referer);
         const refSegments = refUrl.pathname.split('/').filter(Boolean);
-        for (const seg of refSegments) {
-          const node = activeNodesMap.get(seg.toLowerCase());
+        if (refSegments.length >= 1) {
+          const refSlug = refSegments[0].toLowerCase();
+          const node = activeNodesMap.get(refSlug);
           if (node) {
-            return { node, targetPath: rawPath, matchedTier: 2 };
+            return {
+              node,
+              targetPath: rawPath,
+              matchedTier: 2,
+              baseSlug: node.slug,
+            };
           }
         }
       } catch {
-        // Ignore
-      }
-    }
-
-    // =========================================================================
-    // 5. Active Node Cookie (__active_node)
-    // Routes Root / and all SPA assets natively to the active node port
-    // =========================================================================
-    const cookies = this.parseCookies(req.headers?.cookie);
-    const activeNodeCookie = cookies['__active_node'];
-    if (activeNodeCookie) {
-      const node = activeNodesMap.get(activeNodeCookie.toLowerCase());
-      if (node) {
-        return { node, targetPath: rawPath, matchedTier: 3 };
-      }
-    }
-
-    // If no cookie set but there is an active node, default to the first active node for root /
-    if ((rawPath === '/' || rawPath === '') && allActiveNodes.length > 0) {
-      const defaultNode = allActiveNodes.find((n) => n.is_active);
-      if (defaultNode) {
-        return { node: defaultNode, targetPath: '/', matchedTier: 3 };
+        // Ignore invalid referer URLs
       }
     }
 
@@ -206,20 +166,23 @@ export class ProxyService implements OnModuleInit {
     resolved: ResolvedNode,
     startTime: number,
   ) {
-    const { node, targetPath, isSwitchRedirect } = resolved;
+    const { node, targetPath, isTrailingSlashRedirect, redirectUrl, baseSlug } = resolved;
     const originalUrl = req.url;
 
-    // 1. Switch Redirect: Set active node cookie and redirect browser to root /
-    if (isSwitchRedirect) {
-      res.setHeader('Set-Cookie', `__active_node=${node.slug}; Path=/; SameSite=Lax`);
-      return res.redirect(302, '/');
+    // 1. Enforce trailing slash for deterministic subpath base URL
+    if (isTrailingSlashRedirect && redirectUrl) {
+      return res.redirect(301, redirectUrl);
     }
 
-    // 2. Always refresh sticky cookie
-    res.setHeader('Set-Cookie', `__active_node=${node.slug}; Path=/; SameSite=Lax`);
-
+    (req as any).__baseSlug = baseSlug || node.slug;
     req.url = targetPath; // Set forwarded path
     const targetUrl = `http://127.0.0.1:${node.port}`;
+
+    // For HTML requests, request uncompressed response from local server for fast zero-overhead rewriting
+    const acceptsHtml = (req.headers?.accept || '').includes('text/html');
+    if (acceptsHtml) {
+      delete req.headers['accept-encoding'];
+    }
 
     // Intercept response finish for traffic logging
     res.on('finish', () => {
@@ -242,7 +205,6 @@ export class ProxyService implements OnModuleInit {
       });
     });
 
-    // Transparent proxy streaming - zero body tampering, zero encoding corruption
     this.proxy.web(req, res, {
       target: targetUrl,
       headers: {
@@ -253,9 +215,204 @@ export class ProxyService implements OnModuleInit {
   }
 
   /**
+   * Handle proxy responses: rewrite HTML with <base> and client shim, stream other media
+   */
+  private handleProxyResponse(proxyRes: http.IncomingMessage, req: any, res: Response) {
+    if (res.headersSent) return;
+
+    const contentType = (proxyRes.headers['content-type'] || '').toLowerCase();
+    const isHtml = contentType.includes('text/html');
+    const slug = req.__baseSlug || '';
+
+    // Scope cookies to this node's subpath prefix so different nodes never overwrite each other's cookies
+    const setCookie = proxyRes.headers['set-cookie'];
+    if (setCookie && slug) {
+      const prefix = `/${slug}`;
+      const rewrittenCookies = (Array.isArray(setCookie) ? setCookie : [setCookie]).map((c) => {
+        if (/Path=\//i.test(c)) {
+          return c.replace(/Path=\/(?!\w)/i, `Path=${prefix}/`);
+        }
+        return `${c}; Path=${prefix}/`;
+      });
+      proxyRes.headers['set-cookie'] = rewrittenCookies;
+    }
+
+    // For non-HTML responses (JS, CSS, images, JSON, media, etc.): direct high-speed pipe
+    if (!isHtml) {
+      res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+      proxyRes.pipe(res);
+      return;
+    }
+
+    // For HTML responses: buffer, decompress if needed, rewrite root-relative paths & inject base/shim
+    const chunks: Buffer[] = [];
+    proxyRes.on('data', (chunk) => chunks.push(chunk));
+    proxyRes.on('end', () => {
+      if (res.headersSent) return;
+
+      const bodyBuffer = Buffer.concat(chunks);
+      const encoding = (proxyRes.headers['content-encoding'] || '').toLowerCase();
+
+      let decompressed: Buffer;
+      try {
+        if (encoding === 'gzip') {
+          decompressed = zlib.gunzipSync(bodyBuffer);
+        } else if (encoding === 'deflate') {
+          decompressed = zlib.inflateSync(bodyBuffer);
+        } else if (encoding === 'br') {
+          decompressed = zlib.brotliDecompressSync(bodyBuffer);
+        } else {
+          decompressed = bodyBuffer;
+        }
+      } catch {
+        decompressed = bodyBuffer;
+      }
+
+      let html = decompressed.toString('utf-8');
+
+      if (slug) {
+        html = this.injectSubpathShim(html, slug);
+      }
+
+      const modifiedBuffer = Buffer.from(html, 'utf-8');
+
+      const outgoingHeaders: Record<string, any> = { ...proxyRes.headers };
+      delete outgoingHeaders['content-length'];
+      delete outgoingHeaders['content-encoding'];
+      outgoingHeaders['content-type'] = 'text/html; charset=utf-8';
+      outgoingHeaders['content-length'] = String(modifiedBuffer.length);
+      outgoingHeaders['cache-control'] = 'no-cache, no-store, must-revalidate';
+      outgoingHeaders['pragma'] = 'no-cache';
+      outgoingHeaders['expires'] = '0';
+
+      res.writeHead(proxyRes.statusCode || 200, outgoingHeaders);
+      res.end(modifiedBuffer);
+    });
+
+    proxyRes.on('error', (err) => {
+      this.logger.error(`Error processing HTML proxy response: ${err.message}`);
+      if (!res.headersSent) {
+        res.writeHead(502);
+        res.end('Error processing upstream response');
+      }
+    });
+  }
+
+  /**
+   * Rewrites root-relative attributes in HTML and injects <base> and client shim
+   */
+  private injectSubpathShim(html: string, slug: string): string {
+    const prefix = `/${slug}`;
+
+    // 1. Rewrite root-relative attributes in HTML so initial script/css/img tags load from /<slug>/...
+    // Matches src="/path" and href="/path" where /path is not protocol-relative (//) and not already prefixed
+    const srcRegex = new RegExp(`src="/(?!/|${slug}/)`, 'gi');
+    html = html.replace(srcRegex, `src="${prefix}/`);
+
+    const hrefRegex = new RegExp(`href="/(?!/|${slug}/)`, 'gi');
+    html = html.replace(hrefRegex, `href="${prefix}/`);
+
+    const actionRegex = new RegExp(`action="/(?!/|${slug}/)`, 'gi');
+    html = html.replace(actionRegex, `action="${prefix}/`);
+
+    // 2. Prepare Base tag and Client-side Interceptor Script
+    const shimScript = `
+<base href="${prefix}/">
+<script id="__ngrok_subpath_gateway_shim__">
+(function() {
+  var prefix = '${prefix}';
+  window.__NGROK_BASE__ = prefix;
+
+  // Intercept window.fetch
+  if (typeof window.fetch === 'function') {
+    var origFetch = window.fetch;
+    window.fetch = function(resource, init) {
+      if (typeof resource === 'string') {
+        if (resource.startsWith('/') && !resource.startsWith(prefix) && !resource.startsWith('//')) {
+          resource = prefix + resource;
+        }
+      } else if (resource && typeof resource.url === 'string') {
+        try {
+          var u = new URL(resource.url, window.location.href);
+          if (u.origin === window.location.origin && u.pathname.startsWith('/') && !u.pathname.startsWith(prefix)) {
+            resource = new Request(prefix + u.pathname + u.search, resource);
+          }
+        } catch (e) {}
+      }
+      return origFetch.call(this, resource, init);
+    };
+  }
+
+  // Intercept XMLHttpRequest
+  if (window.XMLHttpRequest) {
+    var origOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      if (typeof url === 'string' && url.startsWith('/') && !url.startsWith(prefix) && !url.startsWith('//')) {
+        url = prefix + url;
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+
+  // Intercept WebSocket (Vite HMR, Socket.io, etc.)
+  if (window.WebSocket) {
+    var OrigWS = window.WebSocket;
+    var ShimmedWS = function(url, protocols) {
+      if (typeof url === 'string') {
+        try {
+          var parsed = new URL(url, window.location.href.replace(/^http/, 'ws'));
+          if (parsed.host === window.location.host && parsed.pathname.startsWith('/') && !parsed.pathname.startsWith(prefix)) {
+            parsed.pathname = prefix + parsed.pathname;
+            url = parsed.toString();
+          }
+        } catch (e) {}
+      }
+      return arguments.length > 1 ? new OrigWS(url, protocols) : new OrigWS(url);
+    };
+    ShimmedWS.prototype = OrigWS.prototype;
+    window.WebSocket = ShimmedWS;
+  }
+
+  // Intercept History pushState & replaceState for SPA routers (React Router, Vue Router, etc.)
+  if (window.history && history.pushState) {
+    var origPush = history.pushState;
+    history.pushState = function(state, title, url) {
+      if (typeof url === 'string' && url.startsWith('/') && !url.startsWith(prefix) && !url.startsWith('//')) {
+        url = prefix + url;
+      }
+      return origPush.call(this, state, title, url);
+    };
+    var origReplace = history.replaceState;
+    history.replaceState = function(state, title, url) {
+      if (typeof url === 'string' && url.startsWith('/') && !url.startsWith(prefix) && !url.startsWith('//')) {
+        url = prefix + url;
+      }
+      return origReplace.call(this, state, title, url);
+    };
+  }
+})();
+</script>
+`;
+
+    // 3. Inject right after <head> or at start of HTML
+    if (/<head[^>]*>/i.test(html)) {
+      html = html.replace(/(<head[^>]*>)/i, `$1\n${shimScript}`);
+    } else if (/<html[^>]*>/i.test(html)) {
+      html = html.replace(/(<html[^>]*>)/i, `$1\n<head>${shimScript}</head>`);
+    } else {
+      html = shimScript + html;
+    }
+
+    return html;
+  }
+
+  /**
    * Handle WebSocket Upgrade
    */
-  handleWebSocketUpgrade(req: http.IncomingMessage, socket: any, head: any, node: NodeEntity) {
+  handleWebSocketUpgrade(req: http.IncomingMessage, socket: any, head: any, node: NodeEntity, targetPath?: string) {
+    if (targetPath) {
+      req.url = targetPath;
+    }
     const targetUrl = `http://127.0.0.1:${node.port}`;
     this.logger.log(`Proxying WebSocket upgrade for [${node.name}] -> localhost:${node.port}${req.url}`);
     

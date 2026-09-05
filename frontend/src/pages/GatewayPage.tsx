@@ -311,8 +311,8 @@ export const GatewayPage: React.FC<GatewayPageProps> = ({
           <div className="divide-y divide-frost-border dark:divide-zinc-800 text-xs">
             {nodes.slice(0, 3).map((node) => {
               const liveUrl = isOnline && ngrokStatus?.publicUrl
-                ? `${ngrokStatus.publicUrl}/${node.slug}`
-                : `/${node.slug}`;
+                ? `${ngrokStatus.publicUrl}/${node.slug}/`
+                : `/${node.slug}/`;
               const isHealthy = node.last_health_status === 'HEALTHY';
 
               return (

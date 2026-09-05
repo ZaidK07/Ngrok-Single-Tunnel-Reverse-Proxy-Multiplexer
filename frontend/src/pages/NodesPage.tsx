@@ -166,7 +166,7 @@ export const NodesPage: React.FC<NodesPageProps> = ({
               </thead>
               <tbody className="divide-y divide-frost-border dark:divide-zinc-800 text-midnight-ink dark:text-zinc-300">
                 {paginatedNodes.map((node) => {
-                  const liveUrl = `${baseNgrokUrl}/${node.slug}`;
+                  const liveUrl = `${baseNgrokUrl}/${node.slug}/`;
                   const isHealthy = node.last_health_status === 'HEALTHY';
 
                   return (

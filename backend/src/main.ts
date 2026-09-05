@@ -43,7 +43,7 @@ async function bootstrap() {
     try {
       const resolved = await proxyService.resolveTargetNode(req);
       if (resolved && resolved.node.is_active) {
-        proxyService.handleWebSocketUpgrade(req, socket, head, resolved.node);
+        proxyService.handleWebSocketUpgrade(req, socket, head, resolved.node, resolved.targetPath);
       } else {
         socket.destroy();
       }
