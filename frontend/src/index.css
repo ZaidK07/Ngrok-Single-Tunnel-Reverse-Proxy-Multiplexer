@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-midnight-ink: #091135;
+  --color-electric-blue: #0f77ff;
+  --color-cobalt-surface: #127ee3;
+  --color-slate: #36394a;
+  --color-frost-border: #e1e9f0;
+  --color-mist: #b1bbcd;
+  --color-graphite: #000000;
+  --color-paper: #ffffff;
+  --color-lavender-wash: #f5f3ff;
+
+  --radius-cards: 12px;
+  --radius-inputs: 8px;
+  --radius-buttons: 8px;
+  --radius-tags: 9999px;
+}
+
+body {
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
 /* Remove spin buttons from number inputs */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
@@ -24,10 +45,10 @@ input[type=number] {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(150, 150, 150, 0.2);
+  background: rgba(177, 187, 205, 0.4);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(150, 150, 150, 0.4);
+  background: rgba(177, 187, 205, 0.7);
 }

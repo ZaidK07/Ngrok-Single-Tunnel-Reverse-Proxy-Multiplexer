@@ -8,17 +8,19 @@ import { SettingsPage } from './pages/SettingsPage';
 import { SetupPage } from './pages/SetupPage';
 import { NodeEntity, NgrokStatus, TrafficStats, CreateNodePayload } from './types';
 import {
-  getSetupStatus,
   getNgrokStatus,
+  getNodes,
+  getTrafficStats,
   startNgrok,
   stopNgrok,
-  getNodes,
   createNode,
   updateNode,
   deleteNode,
   pingNode,
   activateNode,
-  getTrafficStats,
+  getSetupStatus,
+  getConfigSettings,
+  updateConfigSettings,
 } from './services/api';
 
 // Parses current window.location.pathname into tab & optional node ID
@@ -107,19 +109,31 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  // Dark mode initialized from user preference or default dark
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('theme');
-    return saved ? saved === 'dark' : true;
-  });
+  // Theme initialized from database settings or default light (Clearbit theme)
+  const [darkMode, setDarkMode] = useState<boolean>(false);
+
+  useEffect(() => {
+    getConfigSettings()
+      .then((cfg) => {
+        if (cfg?.theme === 'dark') {
+          setDarkMode(true);
+        } else if (cfg?.theme === 'light') {
+          setDarkMode(false);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleToggleDarkMode = (isDark: boolean) => {
+    setDarkMode(isDark);
+    updateConfigSettings({ theme: isDark ? 'dark' : 'light' }).catch(() => {});
+  };
 
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
     }
   }, [darkMode]);
 
@@ -212,7 +226,7 @@ export const App: React.FC = () => {
           navigateTo('nodes');
         }}
         darkMode={darkMode}
-        setDarkMode={setDarkMode}
+        setDarkMode={handleToggleDarkMode}
       />
     );
   }
@@ -229,13 +243,13 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 selection:bg-sky-500 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-paper dark:bg-zinc-950 text-midnight-ink dark:text-zinc-100 selection:bg-cobalt-surface selection:text-white font-sans antialiased">
       <Header
         activeTab={activeTab}
         setActiveTab={(tab) => navigateTo(tab)}
         ngrokStatus={ngrokStatus}
         darkMode={darkMode}
-        setDarkMode={setDarkMode}
+        setDarkMode={handleToggleDarkMode}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -279,7 +293,7 @@ export const App: React.FC = () => {
         {activeTab === 'settings' && <SettingsPage />}
       </main>
 
-      <footer className="border-t border-slate-200 dark:border-zinc-800 py-4 text-center text-xs text-slate-400 dark:text-zinc-600">
+      <footer className="border-t border-frost-border dark:border-zinc-800 py-5 text-center text-xs text-clearbit-slate dark:text-zinc-500 bg-paper dark:bg-zinc-950">
         Ngrok Multi-Redirect &bull; Single-Tunnel Reverse Proxy Multiplexer
       </footer>
     </div>

@@ -88,7 +88,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         user_agent TEXT,
         referer TEXT,
         error_message TEXT,
-        created_at TEXT DEFAULT (datetime('now'))
+        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
       );
 
       CREATE INDEX IF NOT EXISTS idx_logs_node_id ON request_logs(node_id);

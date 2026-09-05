@@ -56,7 +56,7 @@ export class TrafficLoggerService implements OnModuleInit, OnModuleDestroy {
         await this.db.execute(
           `INSERT INTO request_logs 
            (id, node_id, method, original_path, target_path, target_port, status_code, latency_ms, client_ip, user_agent, referer, error_message, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             uuidv4(),
             item.nodeId,
@@ -70,6 +70,7 @@ export class TrafficLoggerService implements OnModuleInit, OnModuleDestroy {
             item.userAgent ? item.userAgent.substring(0, 500) : null,
             item.referer ? item.referer.substring(0, 500) : null,
             item.errorMessage || null,
+            new Date().toISOString(),
           ],
         );
       }

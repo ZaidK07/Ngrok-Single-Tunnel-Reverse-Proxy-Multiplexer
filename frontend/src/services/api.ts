@@ -124,6 +124,7 @@ export const updateConfigSettings = async (payload: {
   gateway_port?: string | number;
   traffic_refresh_interval?: string | number;
   traffic_auto_refresh?: boolean;
+  theme?: string;
 }) => {
   const res = await api.post('/settings/config', payload);
   return res.data;

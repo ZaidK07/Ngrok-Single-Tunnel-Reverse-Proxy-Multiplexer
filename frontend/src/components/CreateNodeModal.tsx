@@ -91,32 +91,32 @@ export const CreateNodeModal: React.FC<CreateNodeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-none transition-opacity">
-      <div className="w-full max-w-md bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-midnight-ink/50 backdrop-blur-xs transition-opacity font-sans">
+      <div className="w-full max-w-md bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card shadow-none overflow-hidden">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-zinc-800">
-          <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-frost-border dark:border-zinc-800">
+          <h3 className="text-base font-semibold tracking-body text-midnight-ink dark:text-zinc-100">
             Create Proxy Node
           </h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-btn text-clearbit-slate hover:text-midnight-ink dark:hover:text-zinc-200 hover:bg-lavender-wash dark:hover:bg-zinc-800 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Modal Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg">
+            <div className="p-3 text-xs font-medium text-rose-700 dark:text-rose-400 bg-rose-50/70 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-btn">
               {error}
             </div>
           )}
 
           {/* Node Name */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5">
+            <label className="block text-xs font-semibold text-clearbit-slate dark:text-zinc-300 uppercase tracking-caption mb-1.5">
               Node Name
             </label>
             <input
@@ -125,13 +125,13 @@ export const CreateNodeModal: React.FC<CreateNodeModalProps> = ({
               placeholder="e.g. Wiki, Stripe Webhook, Storefront"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-zinc-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full px-3.5 py-2 text-sm bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-700 rounded-input text-midnight-ink dark:text-zinc-100 placeholder-mist focus:outline-none focus:ring-1 focus:ring-electric-blue focus:border-electric-blue"
             />
           </div>
 
           {/* Node Port */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5">
+            <label className="block text-xs font-semibold text-clearbit-slate dark:text-zinc-300 uppercase tracking-caption mb-1.5">
               Target Port
             </label>
             <input
@@ -142,27 +142,27 @@ export const CreateNodeModal: React.FC<CreateNodeModalProps> = ({
               placeholder="e.g. 3000"
               value={port}
               onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ''))}
-              className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-zinc-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full px-3.5 py-2 text-sm font-mono bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-700 rounded-input text-midnight-ink dark:text-zinc-100 placeholder-mist focus:outline-none focus:ring-1 focus:ring-electric-blue focus:border-electric-blue"
             />
           </div>
 
           {/* Node ID / Slug */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
+              <label className="block text-xs font-semibold text-clearbit-slate dark:text-zinc-300 uppercase tracking-caption">
                 URL Path
               </label>
               <button
                 type="button"
                 onClick={autoGenerateId}
-                className="text-xs text-sky-600 dark:text-sky-400 hover:underline flex items-center space-x-1"
+                className="text-xs text-electric-blue dark:text-sky-400 hover:underline flex items-center space-x-1 font-medium"
               >
                 <Sparkles className="w-3 h-3" />
                 <span>Auto-fill</span>
               </button>
             </div>
             <div className="flex items-center">
-              <span className="px-3 py-2 text-xs font-mono bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border border-r-0 border-slate-300 dark:border-zinc-700 rounded-l-lg select-none">
+              <span className="px-3 py-2 text-xs font-mono bg-lavender-wash dark:bg-zinc-800 text-clearbit-slate dark:text-zinc-400 border border-r-0 border-frost-border dark:border-zinc-700 rounded-l-btn select-none">
                 /
               </span>
               <input
@@ -171,22 +171,22 @@ export const CreateNodeModal: React.FC<CreateNodeModalProps> = ({
                 placeholder="custom-wiki"
                 value={id}
                 onChange={(e) => setId(e.target.value.toLowerCase().trim())}
-                className="w-full px-3 py-2 text-sm font-mono bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-700 rounded-r-lg text-slate-900 dark:text-zinc-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full px-3 py-2 text-sm font-mono bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-700 rounded-r-btn text-midnight-ink dark:text-zinc-100 placeholder-mist focus:outline-none focus:ring-1 focus:ring-electric-blue focus:border-electric-blue"
               />
             </div>
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5">
-              Description <span className="text-slate-400 font-normal">(Optional)</span>
+            <label className="block text-xs font-semibold text-clearbit-slate dark:text-zinc-300 uppercase tracking-caption mb-1.5">
+              Description <span className="text-mist font-normal lowercase">(optional)</span>
             </label>
             <input
               type="text"
               placeholder="Optional description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-zinc-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full px-3.5 py-2 text-sm bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-700 rounded-input text-midnight-ink dark:text-zinc-100 placeholder-mist focus:outline-none focus:ring-1 focus:ring-electric-blue focus:border-electric-blue"
             />
           </div>
 
@@ -200,18 +200,18 @@ export const CreateNodeModal: React.FC<CreateNodeModalProps> = ({
           </div>
 
           {/* Form Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-200 dark:border-zinc-800">
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-frost-border dark:border-zinc-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-slate-700 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+              className="px-4 py-2 text-xs font-medium text-clearbit-slate hover:text-midnight-ink dark:text-zinc-300 bg-paper dark:bg-zinc-800 hover:bg-lavender-wash dark:hover:bg-zinc-700 border border-frost-border dark:border-zinc-700 rounded-btn transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center space-x-1.5 px-4 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-lg shadow-sm transition-colors disabled:opacity-50"
+              className="flex items-center space-x-1.5 px-4 py-2 text-xs font-medium text-white bg-cobalt-surface hover:bg-electric-blue rounded-btn shadow-none transition-colors disabled:opacity-50"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Creating...' : 'Create Node'}</span>

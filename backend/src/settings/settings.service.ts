@@ -62,6 +62,7 @@ export class SettingsService {
       gateway_port: dbSettings.gateway_port || '7779',
       traffic_refresh_interval: parseInt(dbSettings.traffic_refresh_interval || '3', 10),
       traffic_auto_refresh: dbSettings.traffic_auto_refresh !== 'false',
+      theme: dbSettings.theme || 'light',
       database: this.db.getStatus(),
     };
   }
@@ -72,6 +73,7 @@ export class SettingsService {
     gateway_port?: string | number;
     traffic_refresh_interval?: string | number;
     traffic_auto_refresh?: boolean;
+    theme?: string;
   }) {
     if (payload.ngrok_authtoken !== undefined) {
       await this.db.setSetting('ngrok_authtoken', payload.ngrok_authtoken.trim());
@@ -87,6 +89,9 @@ export class SettingsService {
     }
     if (payload.traffic_auto_refresh !== undefined) {
       await this.db.setSetting('traffic_auto_refresh', String(payload.traffic_auto_refresh));
+    }
+    if (payload.theme !== undefined) {
+      await this.db.setSetting('theme', String(payload.theme).trim());
     }
     return { success: true, message: 'Settings updated successfully in database.' };
   }

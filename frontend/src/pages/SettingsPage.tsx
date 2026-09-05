@@ -3,12 +3,9 @@ import {
   Database,
   Radio,
   Server,
-  Shield,
   RefreshCw,
   Trash2,
   Save,
-  Key,
-  Globe,
   Sliders,
   Check,
   Eye,
@@ -114,18 +111,18 @@ export const SettingsPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-zinc-100">
+          <h2 className="text-2xl font-semibold tracking-heading-sm text-midnight-ink dark:text-zinc-100">
             System & Database Settings
           </h2>
-          <p className="text-xs text-slate-500 dark:text-zinc-400">
-            Manage credentials directly in MySQL, monitor infrastructure, and configure the gateway
+          <p className="text-xs text-clearbit-slate dark:text-zinc-400 mt-0.5">
+            Manage credentials directly in SQLite, monitor infrastructure, and configure the gateway
           </p>
         </div>
 
         <button
           onClick={fetchInfo}
           disabled={loading}
-          className="p-2 text-slate-500 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-200 border border-slate-300 dark:border-zinc-700 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+          className="p-2 text-clearbit-slate hover:text-midnight-ink dark:text-zinc-400 dark:hover:text-zinc-200 border border-frost-border dark:border-zinc-700 rounded-btn hover:bg-lavender-wash dark:hover:bg-zinc-800 transition-colors"
           title="Refresh Settings"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -133,27 +130,27 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {cleanMessage && (
-        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-btn text-xs font-semibold text-emerald-800 dark:text-emerald-400">
           {cleanMessage}
         </div>
       )}
 
       {/* Editable Credentials Card (Stored in Database) */}
-      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm space-y-4">
+      <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card p-6 shadow-none space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Sliders className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+            <Sliders className="w-5 h-5 text-electric-blue dark:text-sky-400" />
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+              <h3 className="text-sm font-semibold text-midnight-ink dark:text-zinc-100">
                 Database-Backed Gateway & Ngrok Credentials
               </h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-400">
-                Saved directly to MySQL <code>gateway_settings</code> table &mdash; no hardcoding needed
+              <p className="text-xs text-clearbit-slate dark:text-zinc-400 mt-0.5">
+                Saved directly to SQLite <code className="text-electric-blue dark:text-sky-400">gateway_settings</code> table &mdash; zero plain-text files in repository
               </p>
             </div>
           </div>
           {configSuccess && (
-            <div className="flex items-center space-x-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+            <div className="flex items-center space-x-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
               <Check className="w-4 h-4" />
               <span>Saved to Database!</span>
             </div>
@@ -164,7 +161,7 @@ export const SettingsPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Ngrok Auth Token */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-clearbit-slate dark:text-zinc-300 uppercase tracking-caption mb-1">
                 Ngrok Auth Token
               </label>
               <div className="relative">
@@ -173,24 +170,24 @@ export const SettingsPage: React.FC = () => {
                   placeholder="Paste your ngrok auth token..."
                   value={authToken}
                   onChange={(e) => setAuthToken(e.target.value)}
-                  className="w-full px-3.5 py-2 pr-10 text-xs font-mono bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3.5 py-2 pr-10 text-xs font-mono bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-700 rounded-input text-midnight-ink dark:text-zinc-100 placeholder-mist focus:outline-none focus:ring-1 focus:ring-electric-blue focus:border-electric-blue"
                 />
                 <button
                   type="button"
                   onClick={() => setShowToken(!showToken)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mist hover:text-midnight-ink dark:hover:text-zinc-300"
                 >
                   {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              <p className="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">
+              <p className="mt-1 text-[11px] text-clearbit-slate dark:text-zinc-400">
                 Used to authenticate tunnels when starting from the dashboard
               </p>
             </div>
 
             {/* Static Domain */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-clearbit-slate dark:text-zinc-300 uppercase tracking-caption mb-1">
                 Ngrok Static / Custom Domain
               </label>
               <input
@@ -198,9 +195,9 @@ export const SettingsPage: React.FC = () => {
                 placeholder="e.g. unsmooth-jacklyn-unawakening.ngrok-free.dev"
                 value={staticDomain}
                 onChange={(e) => setStaticDomain(e.target.value)}
-                className="w-full px-3.5 py-2 text-xs font-mono bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full px-3.5 py-2 text-xs font-mono bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-700 rounded-input text-midnight-ink dark:text-zinc-100 placeholder-mist focus:outline-none focus:ring-1 focus:ring-electric-blue focus:border-electric-blue"
               />
-              <p className="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">
+              <p className="mt-1 text-[11px] text-clearbit-slate dark:text-zinc-400">
                 Leave empty for an ephemeral dynamic ngrok domain
               </p>
             </div>
@@ -208,7 +205,7 @@ export const SettingsPage: React.FC = () => {
 
           {/* Gateway Port */}
           <div className="w-full sm:w-1/2">
-            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5">
+            <label className="block text-xs font-semibold text-clearbit-slate dark:text-zinc-300 uppercase tracking-caption mb-1.5">
               Gateway Port
             </label>
             <input
@@ -217,7 +214,7 @@ export const SettingsPage: React.FC = () => {
               pattern="[0-9]*"
               value={gatewayPort}
               onChange={(e) => setGatewayPort(e.target.value.replace(/[^0-9]/g, ''))}
-              className="w-full px-3.5 py-2 text-xs font-mono bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full px-3.5 py-2 text-xs font-mono bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-700 rounded-input text-midnight-ink dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-electric-blue focus:border-electric-blue"
             />
           </div>
 
@@ -226,7 +223,7 @@ export const SettingsPage: React.FC = () => {
             <button
               type="submit"
               disabled={savingConfig}
-              className="flex items-center space-x-2 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50"
+              className="flex items-center space-x-2 px-4 py-2 bg-cobalt-surface hover:bg-electric-blue text-white text-xs font-medium rounded-btn shadow-none transition-colors disabled:opacity-50"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{savingConfig ? 'Saving...' : 'Save Settings to Database'}</span>
@@ -237,20 +234,20 @@ export const SettingsPage: React.FC = () => {
 
       {/* 3 Main Diagnostic Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* MySQL Database Status */}
-        <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-5 shadow-xs space-y-4">
+        {/* SQLite Database Status */}
+        <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card p-5 shadow-none space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Database className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-              <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
-                MySQL Persistence
+              <Database className="w-5 h-5 text-electric-blue dark:text-sky-400" />
+              <h3 className="text-sm font-semibold text-midnight-ink dark:text-zinc-100">
+                SQLite (WAL Mode) Persistence
               </h3>
             </div>
             <span
-              className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center px-2 py-0.5 rounded-tag text-[10px] font-bold ${
                 info?.database.connected
-                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
-                  : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                  : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900'
               }`}
             >
               {info?.database.connected ? 'CONNECTED' : 'DISCONNECTED'}
@@ -258,81 +255,81 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-              <span className="text-slate-500 dark:text-zinc-400">Host & Port</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
-                {info?.database.host}:{info?.database.port}
+            <div className="flex justify-between py-1 border-b border-frost-border dark:border-zinc-800">
+              <span className="text-clearbit-slate dark:text-zinc-400">Database Engine</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200">
+                better-sqlite3
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-              <span className="text-slate-500 dark:text-zinc-400">Database</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
-                {info?.database.database}
+            <div className="flex justify-between py-1 border-b border-frost-border dark:border-zinc-800">
+              <span className="text-clearbit-slate dark:text-zinc-400">Concurrency Mode</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200">
+                WAL (Write-Ahead Log)
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-              <span className="text-slate-500 dark:text-zinc-400">Database User</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
-                {info?.database.user}
+            <div className="flex justify-between py-1 border-b border-frost-border dark:border-zinc-800">
+              <span className="text-clearbit-slate dark:text-zinc-400">Storage File</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200">
+                data/gateway.sqlite
               </span>
             </div>
 
             <div className="flex justify-between py-1">
-              <span className="text-slate-500 dark:text-zinc-400">Total Persisted Logs</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
+              <span className="text-clearbit-slate dark:text-zinc-400">Total Persisted Logs</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200">
                 {info?.stats.totalLogs || 0}
               </span>
             </div>
           </div>
 
           {info?.database.lastError && (
-            <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg text-[11px] text-rose-600 dark:text-rose-400 font-mono">
+            <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-btn text-[11px] text-rose-700 dark:text-rose-400 font-mono">
               {info.database.lastError}
             </div>
           )}
         </div>
 
         {/* Gateway Server */}
-        <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-5 shadow-xs space-y-4">
+        <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card p-5 shadow-none space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Server className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-              <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+              <Server className="w-5 h-5 text-cobalt-surface dark:text-indigo-400" />
+              <h3 className="text-sm font-semibold text-midnight-ink dark:text-zinc-100">
                 Gateway Engine
               </h3>
             </div>
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+            <span className="px-2 py-0.5 rounded-tag text-[10px] font-bold bg-lavender-wash dark:bg-zinc-800 text-midnight-ink dark:text-zinc-300 border border-frost-border dark:border-zinc-700">
               PORT {info?.gateway.port || 7779}
             </span>
           </div>
 
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-              <span className="text-slate-500 dark:text-zinc-400">Uptime</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
+            <div className="flex justify-between py-1 border-b border-frost-border dark:border-zinc-800">
+              <span className="text-clearbit-slate dark:text-zinc-400">Uptime</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200">
                 {info ? formatUptime(info.gateway.uptimeSeconds) : '0s'}
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-              <span className="text-slate-500 dark:text-zinc-400">Node.js Runtime</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
+            <div className="flex justify-between py-1 border-b border-frost-border dark:border-zinc-800">
+              <span className="text-clearbit-slate dark:text-zinc-400">Node.js Runtime</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200">
                 {info?.gateway.nodeVersion}
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-              <span className="text-slate-500 dark:text-zinc-400">Memory (RSS)</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
+            <div className="flex justify-between py-1 border-b border-frost-border dark:border-zinc-800">
+              <span className="text-clearbit-slate dark:text-zinc-400">Memory (RSS)</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200">
                 {info ? formatBytes(info.gateway.memoryUsage.rss) : '0 MB'}
               </span>
             </div>
 
             <div className="flex justify-between py-1">
-              <span className="text-slate-500 dark:text-zinc-400">Platform</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
+              <span className="text-clearbit-slate dark:text-zinc-400">Platform</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200">
                 {info?.gateway.platform}
               </span>
             </div>
@@ -340,19 +337,19 @@ export const SettingsPage: React.FC = () => {
         </div>
 
         {/* Ngrok Integration */}
-        <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-5 shadow-xs space-y-4">
+        <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card p-5 shadow-none space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Radio className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-              <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+              <Radio className="w-5 h-5 text-electric-blue dark:text-sky-400" />
+              <h3 className="text-sm font-semibold text-midnight-ink dark:text-zinc-100">
                 Ngrok Status
               </h3>
             </div>
             <span
-              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+              className={`px-2 py-0.5 rounded-tag text-[10px] font-bold ${
                 info?.ngrok.status === 'ONLINE'
-                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                  : 'bg-lavender-wash dark:bg-zinc-800 text-clearbit-slate dark:text-zinc-400 border border-frost-border dark:border-zinc-700'
               }`}
             >
               {info?.ngrok.status || 'STOPPED'}
@@ -360,30 +357,30 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-              <span className="text-slate-500 dark:text-zinc-400">Detection Mode</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
+            <div className="flex justify-between py-1 border-b border-frost-border dark:border-zinc-800">
+              <span className="text-clearbit-slate dark:text-zinc-400">Detection Mode</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200">
                 {info?.ngrok.mode}
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-              <span className="text-slate-500 dark:text-zinc-400">Configured Domain</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200 truncate max-w-[150px]">
+            <div className="flex justify-between py-1 border-b border-frost-border dark:border-zinc-800">
+              <span className="text-clearbit-slate dark:text-zinc-400">Configured Domain</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200 truncate max-w-[150px]">
                 {info?.ngrok.configuredDomain || 'Dynamic'}
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-              <span className="text-slate-500 dark:text-zinc-400">Auth Token</span>
-              <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+            <div className="flex justify-between py-1 border-b border-frost-border dark:border-zinc-800">
+              <span className="text-clearbit-slate dark:text-zinc-400">Auth Token</span>
+              <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">
                 {info?.ngrok.hasAuthToken ? 'Configured in DB' : 'Not Set'}
               </span>
             </div>
 
             <div className="flex justify-between py-1">
-              <span className="text-slate-500 dark:text-zinc-400">Gateway Port Forwarded</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
+              <span className="text-clearbit-slate dark:text-zinc-400">Gateway Port Forwarded</span>
+              <span className="font-mono font-semibold text-midnight-ink dark:text-zinc-200">
                 {info?.gateway.port || 7779}
               </span>
             </div>
@@ -392,12 +389,12 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* Database Maintenance & Pruning */}
-      <div className="p-6 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg shadow-xs space-y-4">
+      <div className="p-6 bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card shadow-none space-y-4">
         <div>
-          <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100">
+          <h3 className="text-base font-semibold tracking-body text-midnight-ink dark:text-zinc-100">
             Database Maintenance & Cleanup
           </h3>
-          <p className="text-xs text-slate-500 dark:text-zinc-400">
+          <p className="text-xs text-clearbit-slate dark:text-zinc-400 mt-0.5">
             Prune old historical request logs to maintain peak database performance
           </p>
         </div>
@@ -406,7 +403,7 @@ export const SettingsPage: React.FC = () => {
           <button
             onClick={() => handlePruneLogs(7)}
             disabled={cleaning}
-            className="flex items-center space-x-1.5 px-4 py-2 text-xs font-semibold bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 border border-slate-300 dark:border-zinc-700 rounded-lg text-slate-700 dark:text-zinc-200 transition-colors disabled:opacity-50"
+            className="flex items-center space-x-1.5 px-4 py-2 text-xs font-medium bg-paper dark:bg-zinc-800 hover:bg-lavender-wash dark:hover:bg-zinc-700 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 transition-colors disabled:opacity-50"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Clear Logs Older Than 7 Days</span>
@@ -415,7 +412,7 @@ export const SettingsPage: React.FC = () => {
           <button
             onClick={() => handlePruneLogs(30)}
             disabled={cleaning}
-            className="flex items-center space-x-1.5 px-4 py-2 text-xs font-semibold bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 border border-slate-300 dark:border-zinc-700 rounded-lg text-slate-700 dark:text-zinc-200 transition-colors disabled:opacity-50"
+            className="flex items-center space-x-1.5 px-4 py-2 text-xs font-medium bg-paper dark:bg-zinc-800 hover:bg-lavender-wash dark:hover:bg-zinc-700 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 transition-colors disabled:opacity-50"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Clear Logs Older Than 30 Days</span>
