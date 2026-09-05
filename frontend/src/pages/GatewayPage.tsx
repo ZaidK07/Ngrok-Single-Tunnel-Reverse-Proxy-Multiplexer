@@ -5,10 +5,6 @@ import {
   Play,
   Square,
   ExternalLink,
-  Layers,
-  Activity,
-  Zap,
-  ShieldCheck,
   RefreshCw,
 } from 'lucide-react';
 import { NgrokStatus, TrafficStats, NodeEntity } from '../types';
@@ -32,16 +28,16 @@ export const GatewayPage: React.FC<GatewayPageProps> = ({
   onRefresh,
   setActiveTab,
 }) => {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
   const [loadingAction, setLoadingAction] = useState(false);
 
   const isOnline = ngrokStatus?.status === 'ONLINE';
   const healthyNodesCount = nodes.filter((n) => n.last_health_status === 'HEALTHY').length;
 
-  const handleCopy = (text: string) => {
+  const handleCopy = (text: string, id: string = 'base') => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   const handleToggleTunnel = async () => {
@@ -58,219 +54,206 @@ export const GatewayPage: React.FC<GatewayPageProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner / Tunnel Controller */}
-      <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card p-6 shadow-none">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center space-x-3">
-              <span
-                className={`inline-flex items-center px-3 py-1 rounded-tag text-xs font-semibold uppercase tracking-caption ${
-                  isOnline
-                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                    : 'bg-lavender-wash dark:bg-zinc-800 text-clearbit-slate dark:text-zinc-400 border border-frost-border dark:border-zinc-700'
-                }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full mr-2 ${
-                    isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-mist'
-                  }`}
-                />
-                {isOnline ? 'Ngrok Tunnel Online' : 'Ngrok Tunnel Stopped'}
+    <div className="space-y-4 max-w-5xl mx-auto">
+      {/* Live Tunnel Banner */}
+      <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3 min-w-0">
+            <span
+              className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-mist dark:bg-zinc-600'
+              }`}
+            />
+            {isOnline && ngrokStatus?.publicUrl ? (
+              <div className="min-w-0 flex items-center space-x-2">
+                <span className="font-mono text-sm sm:text-base font-semibold text-midnight-ink dark:text-zinc-100 truncate select-all">
+                  {ngrokStatus.publicUrl}
+                </span>
+                <button
+                  onClick={() => handleCopy(ngrokStatus.publicUrl!, 'base')}
+                  className="p-1.5 text-mist hover:text-midnight-ink dark:hover:text-zinc-200 rounded-btn hover:bg-lavender-wash dark:hover:bg-zinc-800 transition-colors shrink-0"
+                  title="Copy URL"
+                >
+                  {copied === 'base' ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                <a
+                  href={ngrokStatus.publicUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-1.5 text-mist hover:text-midnight-ink dark:hover:text-zinc-200 rounded-btn hover:bg-lavender-wash dark:hover:bg-zinc-800 transition-colors shrink-0"
+                  title="Open in new tab"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            ) : (
+              <span className="font-mono text-sm text-clearbit-slate dark:text-zinc-400">
+                Tunnel Offline
               </span>
-
-              <button
-                onClick={onRefresh}
-                className="p-1 text-mist hover:text-midnight-ink dark:hover:text-zinc-300 transition-colors"
-                title="Refresh Status"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-            </div>
-
-            <h2 className="text-2xl font-semibold tracking-heading-sm text-midnight-ink dark:text-zinc-100">
-              Gateway Reverse Proxy Controller
-            </h2>
-            <p className="text-xs text-clearbit-slate dark:text-zinc-400">
-              Receives all incoming public traffic and multiplexes to target local ports.
-            </p>
+            )}
           </div>
 
-          {/* Action Button */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              onClick={onRefresh}
+              className="p-2 text-mist hover:text-midnight-ink dark:text-zinc-400 dark:hover:text-zinc-200 border border-frost-border dark:border-zinc-800 rounded-btn hover:bg-lavender-wash dark:hover:bg-zinc-800 transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
             <button
               onClick={handleToggleTunnel}
               disabled={loadingAction}
-              className={`flex items-center space-x-2 px-5 py-2.5 rounded-btn text-sm font-medium transition-all disabled:opacity-50 ${
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-btn text-xs font-medium transition-colors ${
                 isOnline
-                  ? 'bg-paper border border-frost-border text-rose-600 hover:bg-rose-50/50 dark:bg-zinc-800 dark:border-zinc-700 dark:text-rose-400'
+                  ? 'border border-frost-border dark:border-zinc-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50/60 dark:hover:bg-rose-950/40 bg-paper dark:bg-zinc-900'
                   : 'bg-cobalt-surface hover:bg-electric-blue text-white shadow-none'
               }`}
             >
               {loadingAction ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-3 h-3 animate-spin" />
               ) : isOnline ? (
-                <Square className="w-4 h-4 fill-current" />
+                <Square className="w-3 h-3 fill-current" />
               ) : (
-                <Play className="w-4 h-4 fill-current" />
+                <Play className="w-3 h-3 fill-current" />
               )}
-              <span>{isOnline ? 'Stop Ngrok Tunnel' : 'Start Ngrok Tunnel'}</span>
+              <span>{isOnline ? 'Stop Tunnel' : 'Start Tunnel'}</span>
             </button>
           </div>
         </div>
-
-        {/* Public URL Box */}
-        {isOnline && ngrokStatus?.publicUrl && (
-          <div className="mt-6 pt-6 border-t border-frost-border dark:border-zinc-800">
-            <div className="text-xs font-semibold text-clearbit-slate dark:text-zinc-400 uppercase tracking-caption mb-2">
-              Primary Public Gateway URL
-            </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <div className="flex-1 flex items-center px-3.5 py-2 bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-700 rounded-btn text-sm font-mono text-midnight-ink dark:text-zinc-100 overflow-x-auto">
-                <span className="text-electric-blue dark:text-sky-400 mr-2">https://</span>
-                <span className="font-semibold">
-                  {ngrokStatus.publicUrl.replace(/^https?:\/\//, '')}
-                </span>
-              </div>
-              <button
-                onClick={() => handleCopy(ngrokStatus.publicUrl!)}
-                className="flex items-center justify-center space-x-1.5 px-4 py-2 text-xs font-medium bg-paper dark:bg-zinc-800 hover:bg-lavender-wash dark:hover:bg-zinc-700 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 transition-colors"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-500" />
-                    <span>Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    <span>Copy Base URL</span>
-                  </>
-                )}
-              </button>
-              <a
-                href={ngrokStatus.publicUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-center p-2.5 bg-paper dark:bg-zinc-800 hover:bg-lavender-wash dark:hover:bg-zinc-700 border border-frost-border dark:border-zinc-700 rounded-btn text-midnight-ink dark:text-zinc-200 transition-colors"
-                title="Open in new tab"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            </div>
-            <div className="mt-2.5 flex items-center space-x-4 text-xs text-clearbit-slate dark:text-zinc-400">
-              <span>
-                Forwarding target: <strong className="font-mono text-midnight-ink dark:text-zinc-300">127.0.0.1:{ngrokStatus.gatewayPort}</strong>
-              </span>
-              <span>•</span>
-              <span>
-                Agent mode: <strong className="text-midnight-ink dark:text-zinc-300">{ngrokStatus.mode}</strong>
-              </span>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* KPI Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card shadow-none">
-          <div className="flex items-center justify-between text-clearbit-slate dark:text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-caption">Total Nodes</span>
-            <Layers className="w-4 h-4 text-mist" />
+      {/* Inline Stat Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card px-4 py-3">
+          <div className="text-[11px] text-clearbit-slate dark:text-zinc-400 font-medium uppercase tracking-caption">
+            Nodes
           </div>
-          <div className="mt-2 text-2xl font-semibold text-midnight-ink dark:text-zinc-100 font-mono">
+          <div className="text-lg font-semibold font-mono text-midnight-ink dark:text-zinc-100 mt-0.5">
             {nodes.length}
           </div>
-          <div className="mt-1 text-xs text-clearbit-slate dark:text-zinc-400">
-            Registered route endpoints
-          </div>
         </div>
 
-        <div className="p-5 bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card shadow-none">
-          <div className="flex items-center justify-between text-clearbit-slate dark:text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-caption">Healthy Ports</span>
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+        <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card px-4 py-3">
+          <div className="text-[11px] text-clearbit-slate dark:text-zinc-400 font-medium uppercase tracking-caption">
+            Healthy Ports
           </div>
-          <div className="mt-2 text-2xl font-semibold text-emerald-700 dark:text-emerald-400 font-mono">
+          <div className="text-lg font-semibold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
             {healthyNodesCount} / {nodes.length}
           </div>
-          <div className="mt-1 text-xs text-clearbit-slate dark:text-zinc-400">
-            Local applications alive
-          </div>
         </div>
 
-        <div className="p-5 bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card shadow-none">
-          <div className="flex items-center justify-between text-clearbit-slate dark:text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-caption">Total Requests</span>
-            <Activity className="w-4 h-4 text-mist" />
+        <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card px-4 py-3">
+          <div className="text-[11px] text-clearbit-slate dark:text-zinc-400 font-medium uppercase tracking-caption">
+            Requests
           </div>
-          <div className="mt-2 text-2xl font-semibold text-midnight-ink dark:text-zinc-100 font-mono">
+          <div className="text-lg font-semibold font-mono text-midnight-ink dark:text-zinc-100 mt-0.5">
             {trafficStats?.totalRequests || 0}
           </div>
-          <div className="mt-1 text-xs text-clearbit-slate dark:text-zinc-400">
-            Proxied through gateway
-          </div>
         </div>
 
-        <div className="p-5 bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card shadow-none">
-          <div className="flex items-center justify-between text-clearbit-slate dark:text-zinc-400">
-            <span className="text-xs font-semibold uppercase tracking-caption">Avg Latency</span>
-            <Zap className="w-4 h-4 text-amber-500" />
+        <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card px-4 py-3">
+          <div className="text-[11px] text-clearbit-slate dark:text-zinc-400 font-medium uppercase tracking-caption">
+            Avg Latency
           </div>
-          <div className="mt-2 text-2xl font-semibold text-midnight-ink dark:text-zinc-100 font-mono">
+          <div className="text-lg font-semibold font-mono text-midnight-ink dark:text-zinc-100 mt-0.5">
             {trafficStats?.avgLatencyMs || 0}ms
-          </div>
-          <div className="mt-1 text-xs text-clearbit-slate dark:text-zinc-400">
-            Error rate: {trafficStats?.errorRate || '0.0%'}
           </div>
         </div>
       </div>
 
-      {/* Quick Setup Guide & Architecture */}
-      <div className="p-6 bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card shadow-none space-y-4">
-        <h3 className="text-base font-semibold tracking-body text-midnight-ink dark:text-zinc-100">
-          How Routing Works Behind 1 Ngrok Tunnel
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-clearbit-slate dark:text-zinc-400">
-          <div className="p-4 bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-800 rounded-btn space-y-1.5">
-            <div className="font-semibold text-midnight-ink dark:text-zinc-200 text-sm">
-              1. Explicit Path
-            </div>
-            <p>
-              When a client hits <code className="text-electric-blue dark:text-sky-400">/node_id/api/...</code>, the gateway matches the Node ID, strips the prefix, and routes directly to that local port.
-            </p>
-          </div>
-
-          <div className="p-4 bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-800 rounded-btn space-y-1.5">
-            <div className="font-semibold text-midnight-ink dark:text-zinc-200 text-sm">
-              2. Referer Isolation
-            </div>
-            <p>
-              Multiple browser tabs loading full React/Next/Vue UIs will never clash. Naked assets like <code className="text-electric-blue dark:text-sky-400">/style.css</code> are scoped to their origin tab.
-            </p>
-          </div>
-
-          <div className="p-4 bg-lavender-wash/40 dark:bg-zinc-950 border border-frost-border dark:border-zinc-800 rounded-btn space-y-1.5">
-            <div className="font-semibold text-midnight-ink dark:text-zinc-200 text-sm">
-              3. WebSockets & SSE
-            </div>
-            <p>
-              Full-duplex protocols like Socket.io, HMR, and real-time event streams are automatically upgraded and piped to the target port.
-            </p>
-          </div>
-        </div>
-
-        <div className="pt-2 flex items-center justify-between">
-          <span className="text-xs text-clearbit-slate dark:text-zinc-400">
-            Ready to expose a local port?
+      {/* Active Endpoints List */}
+      <div className="bg-paper dark:bg-zinc-900 border border-frost-border dark:border-zinc-800 rounded-card overflow-hidden shadow-none">
+        <div className="px-4 py-3 border-b border-frost-border dark:border-zinc-800 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-caption text-clearbit-slate dark:text-zinc-400">
+            Active Routes ({nodes.length})
           </span>
           <button
             onClick={() => setActiveTab('nodes')}
-            className="text-xs font-semibold text-electric-blue dark:text-sky-400 hover:underline flex items-center space-x-1"
+            className="text-xs font-medium text-electric-blue dark:text-sky-400 hover:underline"
           >
-            <span>Manage Nodes &rarr;</span>
+            Manage Nodes &rarr;
           </button>
         </div>
+
+        {nodes.length === 0 ? (
+          <div className="p-8 text-center text-xs text-clearbit-slate dark:text-zinc-500">
+            No route nodes configured.{' '}
+            <button
+              onClick={() => setActiveTab('nodes')}
+              className="text-electric-blue dark:text-sky-400 font-medium hover:underline"
+            >
+              Add your first node
+            </button>
+          </div>
+        ) : (
+          <div className="divide-y divide-frost-border dark:divide-zinc-800 text-xs font-mono">
+            {nodes.map((node) => {
+              const liveUrl = isOnline && ngrokStatus?.publicUrl
+                ? `${ngrokStatus.publicUrl}/${node.slug}`
+                : `/${node.slug}`;
+              const isHealthy = node.last_health_status === 'HEALTHY';
+
+              return (
+                <div
+                  key={node.id}
+                  className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-lavender-wash/30 dark:hover:bg-zinc-800/30 transition-colors"
+                >
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        isHealthy ? 'bg-emerald-500' : 'bg-rose-500'
+                      }`}
+                      title={isHealthy ? 'Port is listening' : 'Port is unreachable'}
+                    />
+                    <div className="min-w-0">
+                      <div className="font-sans font-medium text-midnight-ink dark:text-zinc-100 flex items-center space-x-2">
+                        <span>{node.name}</span>
+                        <span className="font-mono text-[11px] text-clearbit-slate dark:text-zinc-400 font-normal">
+                          localhost:{node.port}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-electric-blue dark:text-sky-400 truncate mt-0.5">
+                        {liveUrl}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2 shrink-0">
+                    {isOnline && ngrokStatus?.publicUrl && (
+                      <>
+                        <button
+                          onClick={() => handleCopy(liveUrl, node.id)}
+                          className="p-1.5 text-mist hover:text-midnight-ink dark:hover:text-zinc-200 rounded-btn hover:bg-lavender-wash dark:hover:bg-zinc-800 transition-colors"
+                          title="Copy Endpoint URL"
+                        >
+                          {copied === node.id ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-500" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                        <a
+                          href={liveUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 text-mist hover:text-midnight-ink dark:hover:text-zinc-200 rounded-btn hover:bg-lavender-wash dark:hover:bg-zinc-800 transition-colors"
+                          title="Open Live Endpoint"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
