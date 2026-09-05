@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <!-- Inbound Tunnel (Left) -->
+  <path d="M 28 128 H 96" stroke="#0ea5e9" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="28" cy="128" r="16" fill="#0ea5e9"/>
+  
+  <!-- Upper Route (Top Port) -->
+  <path d="M 96 128 C 132 128 142 64 176 64 H 228" stroke="#0ea5e9" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="228" cy="64" r="16" fill="#0ea5e9"/>
+  
+  <!-- Center Route (Middle Port) -->
+  <path d="M 96 128 H 228" stroke="#0ea5e9" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="228" cy="128" r="16" fill="#0ea5e9"/>
+  
+  <!-- Lower Route (Bottom Port) -->
+  <path d="M 96 128 C 132 128 142 192 176 192 H 228" stroke="#0ea5e9" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="228" cy="192" r="16" fill="#0ea5e9"/>
+  
+  <!-- Central Multiplexer Gateway Core -->
+  <circle cx="96" cy="128" r="28" fill="#0ea5e9"/>
+  <circle cx="96" cy="128" r="12" fill="white"/>
+</svg>
